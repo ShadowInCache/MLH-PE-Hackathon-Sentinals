@@ -11,7 +11,7 @@
 - [x] Cache: Redis wrapper (5min/10min TTLs, graceful degradation)
 
 ### Phase 3: Intelligence ✅
-- [x] Risk Scorer: 5 signals → 0-100 score → SAFE/SUSPICIOUS/THREAT
+- [x] Risk Scorer: 5 signals → 0-100 score → SAFE/WATCHLIST/THREAT
 - [x] Link Health: APScheduler worker, 5min interval, HEAD checks
 
 ### Phase 4: API Routes ✅

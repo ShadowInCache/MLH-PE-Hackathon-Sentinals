@@ -1,0 +1,288 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ghostlink-nginx
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/blocked_codes.conf:/etc/nginx/blocked_codes.conf
+      - ./logs/nginx:/var/log/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  app1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ghostlink-app1
+    environment:
+      DATABASE_URL: postgresql://ghostlink:ghostlink@postgres:5432/ghostlink
+      REDIS_URL: redis://redis:6379/0
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      DATABASE_NAME: ghostlink
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ghostlink
+      DATABASE_PASSWORD: ghostlink
+      BLOCKED_CODES_PATH: /app/nginx/blocked_codes.conf
+      CANARY_STATE_FILE: /var/lib/ghostlink-security/canary_state.env
+    volumes:
+      - ./nginx/blocked_codes.conf:/app/nginx/blocked_codes.conf:ro
+      - ./security:/var/lib/ghostlink-security:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "5001:5000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  app2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ghostlink-app2
+    environment:
+      DATABASE_URL: postgresql://ghostlink:ghostlink@postgres:5432/ghostlink
+      REDIS_URL: redis://redis:6379/0
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      DATABASE_NAME: ghostlink
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ghostlink
+      DATABASE_PASSWORD: ghostlink
+      BLOCKED_CODES_PATH: /app/nginx/blocked_codes.conf
+      CANARY_STATE_FILE: /var/lib/ghostlink-security/canary_state.env
+    volumes:
+      - ./nginx/blocked_codes.conf:/app/nginx/blocked_codes.conf:ro
+      - ./security:/var/lib/ghostlink-security:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "5002:5000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: ghostlink-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  postgres:
+    image: postgres:15
+    container_name: ghostlink-postgres
+    environment:
+      POSTGRES_DB: ghostlink
+      POSTGRES_USER: ghostlink
+      POSTGRES_PASSWORD: ghostlink
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghostlink -d ghostlink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: ghostlink-alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--config.expand-env"
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9093/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  canary-runner:
+    image: python:3.13-slim
+    container_name: ghostlink-canary-runner
+    command: ["/bin/sh", "/opt/ghostlink/scripts/canary_check.sh"]
+    environment:
+      CANARY_BASE_URL: http://nginx
+      CANARY_INTERVAL_SECONDS: 60
+      CANARY_STATE_FILE: /var/lib/ghostlink-security/canary_state.env
+      CANARY_LOG_FILE: /var/lib/ghostlink-security/canary_failures.log
+    volumes:
+      - ./scripts:/opt/ghostlink/scripts:ro
+      - ./security:/var/lib/ghostlink-security
+    depends_on:
+      nginx:
+        condition: service_healthy
+    restart: always
+    networks:
+      - ghostlink_net
+
+  security-exporter:
+    image: python:3.13-slim
+    container_name: ghostlink-security-exporter
+    command: ["python", "/opt/ghostlink/scripts/security_metrics_exporter.py"]
+    environment:
+      SECURITY_METRICS_PORT: 9101
+      BLOCKED_CODES_PATH: /etc/ghostlink/blocked_codes.conf
+      CANARY_STATE_FILE: /var/lib/ghostlink-security/canary_state.env
+      NGINX_ACCESS_LOG_PATH: /var/log/nginx/access.log
+      URLS_CSV_PATH: /data/urls.csv
+      EVENTS_CSV_PATH: /data/events.csv
+      SECURITY_LOG_TAIL_BYTES: 4000000
+      MAX_RISK_SCORE_SERIES: 250
+    volumes:
+      - ./scripts:/opt/ghostlink/scripts:ro
+      - ./nginx/blocked_codes.conf:/etc/ghostlink/blocked_codes.conf:ro
+      - ./logs/nginx:/var/log/nginx:ro
+      - ./security:/var/lib/ghostlink-security:ro
+      - ./data:/data:ro
+    ports:
+      - "9101:9101"
+    depends_on:
+      nginx:
+        condition: service_started
+      canary-runner:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/health', timeout=3)",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ghostlink-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+      alertmanager:
+        condition: service_started
+      security-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: always
+    networks:
+      - ghostlink_net
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: ghostlink-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ghostlink
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: always
+    networks:
+      - ghostlink_net
+
+networks:
+  ghostlink_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  grafana_data:

@@ -2,9 +2,22 @@ from flask import Blueprint, Response, jsonify
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
 from app.database import db, get_redis
+from app.models.event import Event
 from app.models.health_check import HealthCheck
 from app.models.risk_score import RiskScore
 from app.models.url import Url
+from app.services.security import (
+    CANARY_CODES,
+    parse_canary_state,
+    read_quarantined_codes,
+    repeated_user_agent_hits_total,
+    suspicious_clients_count,
+    top_probed_short_codes,
+    top_suspicious_ip_scores,
+    top_suspicious_user_agents,
+    total_blocked_requests,
+    total_invalid_short_code_hits,
+)
 
 health_bp = Blueprint("health", __name__)
 
@@ -31,14 +44,13 @@ ghost_probes_total = Counter(
     "ghost_probes_total", "Total hits on inactive URLs", registry=registry
 )
 
-destination_dead_total = Counter(
-    "destination_dead_total",
-    "Total number of dead destination detections",
+destination_dead_total = Gauge(
+    "destination_dead_total", "Total number of dead destination detections",
     registry=registry,
 )
 
 risk_score_threats_total = Gauge(
-    "risk_score_threats_total", "Number of URLs with risk score > 70", registry=registry
+    "risk_score_threats_total", "Number of URLs with risk score > 60", registry=registry
 )
 
 urls_active_total = Gauge(
@@ -47,6 +59,118 @@ urls_active_total = Gauge(
 
 urls_inactive_total = Gauge(
     "urls_inactive_total", "Total number of inactive URLs", registry=registry
+)
+
+urls_deleted_total = Counter(
+    "urls_deleted_total", "Total number of URL soft deletes", registry=registry
+)
+
+ghostlink_canary_success_total = Gauge(
+    "ghostlink_canary_success_total",
+    "Total successful synthetic canary checks",
+    registry=registry,
+)
+
+ghostlink_canary_failures_total = Gauge(
+    "ghostlink_canary_failures_total",
+    "Total failed synthetic canary checks",
+    registry=registry,
+)
+
+ghostlink_canary_latency_seconds = Gauge(
+    "ghostlink_canary_latency_seconds",
+    "Latest latency observed for each synthetic canary",
+    ["short_code"],
+    registry=registry,
+)
+
+ghostlink_canary_status = Gauge(
+    "ghostlink_canary_status",
+    "Latest HTTP status observed for each synthetic canary",
+    ["short_code"],
+    registry=registry,
+)
+
+ghostlink_quarantined_urls_total = Gauge(
+    "ghostlink_quarantined_urls_total",
+    "Current number of quarantined short codes",
+    registry=registry,
+)
+
+ghostlink_risk_score = Gauge(
+    "ghostlink_risk_score",
+    "Link risk score from 0 to 100",
+    ["short_code", "risk_level"],
+    registry=registry,
+)
+
+ghostlink_safe_links_total = Gauge(
+    "ghostlink_safe_links_total",
+    "Count of links currently classified as SAFE",
+    registry=registry,
+)
+
+ghostlink_watchlist_links_total = Gauge(
+    "ghostlink_watchlist_links_total",
+    "Count of links currently classified as WATCHLIST",
+    registry=registry,
+)
+
+ghostlink_threat_links_total = Gauge(
+    "ghostlink_threat_links_total",
+    "Count of links currently classified as THREAT",
+    registry=registry,
+)
+
+ghostlink_suspicious_clients_total = Gauge(
+    "ghostlink_suspicious_clients_total",
+    "Number of currently flagged suspicious client IPs",
+    registry=registry,
+)
+
+ghostlink_blocked_requests_total = Gauge(
+    "ghostlink_blocked_requests_total",
+    "Total blocked requests served with HTTP 410",
+    registry=registry,
+)
+
+ghostlink_invalid_short_code_hits_total = Gauge(
+    "ghostlink_invalid_short_code_hits_total",
+    "Total invalid short-code hits observed by the app",
+    registry=registry,
+)
+
+ghostlink_repeated_user_agent_hits_total = Gauge(
+    "ghostlink_repeated_user_agent_hits_total",
+    "Total dead-link hits from repeatedly abusive user agents",
+    registry=registry,
+)
+
+ghostlink_affected_redirects_total = Gauge(
+    "ghostlink_affected_redirects_total",
+    "Total redirects observed for affected short codes",
+    registry=registry,
+)
+
+ghostlink_suspicious_ip_score = Gauge(
+    "ghostlink_suspicious_ip_score",
+    "Risk score for suspicious client IPs",
+    ["ip"],
+    registry=registry,
+)
+
+ghostlink_suspicious_user_agent_hits = Gauge(
+    "ghostlink_suspicious_user_agent_hits",
+    "Dead-link hits observed for suspicious user agents",
+    ["user_agent"],
+    registry=registry,
+)
+
+ghostlink_probed_short_code_hits = Gauge(
+    "ghostlink_probed_short_code_hits",
+    "Most probed short codes observed by the app",
+    ["short_code"],
+    registry=registry,
 )
 
 
@@ -76,6 +200,31 @@ def health_check():
     return jsonify(status), 200
 
 
+@health_bp.route("/health-demo", methods=["GET"])
+def canary_health_demo():
+    return jsonify({"status": "ok", "canary": "health-demo"}), 200
+
+
+@health_bp.route("/promo-demo", methods=["GET"])
+def canary_promo_demo():
+    return jsonify({"status": "ok", "canary": "promo-demo"}), 200
+
+
+@health_bp.route("/checkout-demo", methods=["GET"])
+def canary_checkout_demo():
+    return jsonify({"status": "ok", "canary": "checkout-demo"}), 200
+
+
+@health_bp.route("/dashboard-demo", methods=["GET"])
+def canary_dashboard_demo():
+    return jsonify({"status": "ok", "canary": "dashboard-demo"}), 200
+
+
+@health_bp.route("/support-demo", methods=["GET"])
+def canary_support_demo():
+    return jsonify({"status": "ok", "canary": "support-demo"}), 200
+
+
 @health_bp.route("/metrics", methods=["GET"])
 def metrics():
     """Prometheus metrics endpoint."""
@@ -85,11 +234,95 @@ def metrics():
     urls_active_total.set(active_count)
     urls_inactive_total.set(inactive_count)
 
-    threat_count = RiskScore.select().where(RiskScore.score > 70).count()
+    threat_count = RiskScore.select().where(RiskScore.score > 60).count()
     risk_score_threats_total.set(threat_count)
 
-    dead_count = HealthCheck.select().where(HealthCheck.health_status == "DEAD").count()
-    destination_dead_total._value._value = dead_count
+    dead_count = HealthCheck.select().where(
+        HealthCheck.health_status.in_(["DEAD", "SSL_INVALID"])
+    ).count()
+    destination_dead_total.set(dead_count)
+
+    quarantined_codes = read_quarantined_codes()
+    ghostlink_quarantined_urls_total.set(len(quarantined_codes))
+
+    safe_count = RiskScore.select().where(RiskScore.tier == "SAFE").count()
+    watchlist_count = RiskScore.select().where(RiskScore.tier == "WATCHLIST").count()
+    threat_count = RiskScore.select().where(RiskScore.tier == "THREAT").count()
+
+    ghostlink_safe_links_total.set(safe_count)
+    ghostlink_watchlist_links_total.set(watchlist_count)
+    ghostlink_threat_links_total.set(threat_count)
+
+    ghostlink_risk_score.clear()
+    risk_scores = (
+        RiskScore.select(
+            RiskScore.url_id,
+            RiskScore.score,
+            RiskScore.tier,
+            Url.short_code.alias("short_code"),
+        )
+        .join(Url, on=(RiskScore.url_id == Url.id))
+        .dicts()
+    )
+    threat_url_ids = []
+    for item in risk_scores:
+        tier = item["tier"] or "SAFE"
+        ghostlink_risk_score.labels(short_code=item["short_code"], risk_level=tier).set(
+            float(item["score"])
+        )
+        if tier == "THREAT":
+            threat_url_ids.append(item["url_id"])
+
+    affected_codes = set(quarantined_codes)
+    if threat_url_ids:
+        threat_codes = Url.select(Url.short_code).where(Url.id.in_(threat_url_ids))
+        affected_codes.update(row.short_code for row in threat_codes)
+
+    affected_redirects = 0
+    if affected_codes:
+        affected_code_list = list(affected_codes)
+        affected_redirects = (
+            Event.select()
+            .join(Url, on=(Event.url_id == Url.id))
+            .where(
+                (Event.event_type == "redirect")
+                & (Url.short_code.in_(affected_code_list))
+            )
+            .count()
+        )
+    ghostlink_affected_redirects_total.set(float(affected_redirects))
+
+    canary_state = parse_canary_state()
+    ghostlink_canary_success_total.set(canary_state["success_total"])
+    ghostlink_canary_failures_total.set(canary_state["failure_total"])
+    ghostlink_canary_latency_seconds.clear()
+    ghostlink_canary_status.clear()
+    for canary_code in CANARY_CODES:
+        ghostlink_canary_latency_seconds.labels(short_code=canary_code).set(
+            canary_state["latency"][canary_code]
+        )
+        ghostlink_canary_status.labels(short_code=canary_code).set(
+            canary_state["status"][canary_code]
+        )
+
+    ghostlink_suspicious_clients_total.set(float(suspicious_clients_count()))
+    ghostlink_blocked_requests_total.set(float(total_blocked_requests()))
+    ghostlink_invalid_short_code_hits_total.set(float(total_invalid_short_code_hits()))
+    ghostlink_repeated_user_agent_hits_total.set(
+        float(repeated_user_agent_hits_total())
+    )
+
+    ghostlink_suspicious_ip_score.clear()
+    for ip, score in top_suspicious_ip_scores():
+        ghostlink_suspicious_ip_score.labels(ip=ip).set(score)
+
+    ghostlink_suspicious_user_agent_hits.clear()
+    for user_agent, hits in top_suspicious_user_agents():
+        ghostlink_suspicious_user_agent_hits.labels(user_agent=user_agent).set(hits)
+
+    ghostlink_probed_short_code_hits.clear()
+    for short_code, hits in top_probed_short_codes():
+        ghostlink_probed_short_code_hits.labels(short_code=short_code).set(hits)
 
     return Response(generate_latest(registry), mimetype="text/plain")
 
@@ -117,3 +350,8 @@ def increment_ghost_probes():
 def increment_destination_dead():
     """Helper to increment dead destination counter."""
     destination_dead_total.inc()
+
+
+def increment_urls_deleted():
+    """Helper to increment URL delete counter."""
+    urls_deleted_total.inc()

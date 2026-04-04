@@ -1,11 +1,12 @@
 import time
-from datetime import datetime
 
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.models.health_check import HealthCheck
 from app.models.url import Url
+from app.services.risk_scorer import compute_risk_score
+from app.utils import utc_now_naive
 
 scheduler = None
 
@@ -51,12 +52,15 @@ def check_all_urls():
 
         HealthCheck.create(
             url_id=url.id,
-            checked_at=datetime.utcnow(),
+            checked_at=utc_now_naive(),
             status_code=status_code,
             latency_ms=latency_ms,
             health_status=health_status,
             redirect_chain_length=chain_length,
         )
+
+        # Keep risk signals fresh as new health observations are collected.
+        compute_risk_score(url.id)
 
 
 def start_health_checker():

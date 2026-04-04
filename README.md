@@ -4,6 +4,18 @@ A minimal hackathon starter template. You get the scaffolding and database wirin
 
 **Stack:** Flask · Peewee ORM · PostgreSQL · uv
 
+## GhostLink Production Engineering Extensions
+
+This repository now includes a production-engineering security stack for GhostLink with:
+
+- automatic quarantine mode in Nginx
+- synthetic canary monitoring
+- threat timeline and link risk scoring metrics
+- suspicious client fingerprinting metrics
+- chaos demo commands via `Makefile`
+
+Operational details are documented in `docs/README.md`, `docs/RUNBOOK.md`, and `docs/CAPACITY.md`.
+
 ## **Important**
 
 You need to work with around the seed files that you can find in [MLH PE Hackathon](https://mlh-pe-hackathon.com) platform. This will help you build the schema for the database and have some data to do some testing and submit your project for judging. If you need help with this, reach out on Discord or on the Q&A tab on the platform.

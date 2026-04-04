@@ -63,15 +63,15 @@ curl http://localhost:5000/metrics
 
 | Signal | Points | Trigger |
 |--------|--------|---------|
-| Ghost Probe | +35 | Inactive URL hit >5 times |
-| Dead Destination | +25 | Status 4xx/5xx |
-| Deletion Spike | +20 | User >3 deletes in 1h |
-| Long Chain | +10 | Redirect chain >2 |
-| New Domain | +10 | Domain age <30 days |
+| Destination Dead | +30 | Latest health check indicates dead target |
+| Long Chain | +20 | Redirect chain >3 |
+| Ghost Probe Pressure | +15 | High volume ghost probe events |
+| Suspicious TLD | +20 | Domain TLD in suspicious set |
+| Delete/Recreate Pattern | +15 | Repeated delete/create behavior |
 
 **Tiers:**
 - 0-30: SAFE ✅
-- 31-60: SUSPICIOUS ⚠️
+- 31-60: WATCHLIST ⚠️
 - 61-100: THREAT 🚨
 
 ## 📊 Prometheus Metrics
@@ -189,7 +189,7 @@ python scripts/setup_db.py
 ```python
 from app.services.risk_scorer import compute_risk_score
 result = compute_risk_score(url_id=1)
-print(result)  # {'score': 35, 'tier': 'SUSPICIOUS', ...}
+print(result)  # {'score': 35, 'tier': 'WATCHLIST', ...}
 ```
 
 ### Check Link Health

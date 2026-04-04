@@ -1,8 +1,7 @@
-from datetime import datetime
-
 from peewee import BooleanField, CharField, DateTimeField, ForeignKeyField, IntegerField
 
 from app.database import BaseModel
+from app.utils import utc_now_naive
 
 
 class Url(BaseModel):
@@ -11,8 +10,8 @@ class Url(BaseModel):
     original_url = CharField(max_length=2048)
     title = CharField(max_length=255, null=True)
     is_active = BooleanField(default=True, index=True)
-    created_at = DateTimeField(default=datetime.utcnow)
-    updated_at = DateTimeField(default=datetime.utcnow)
+    created_at = DateTimeField(default=utc_now_naive)
+    updated_at = DateTimeField(default=utc_now_naive)
 
     class Meta:
         table_name = "urls"
@@ -22,5 +21,5 @@ class Url(BaseModel):
         )
 
     def save(self, *args, **kwargs):
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now_naive()
         return super().save(*args, **kwargs)

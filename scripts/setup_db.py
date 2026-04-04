@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.database import db
-from app.models import Event, HealthCheck, RiskScore, Url, User
+from app.models import Event, HealthCheck, RequestFingerprint, RiskScore, Url, User
 from peewee import PostgresqlDatabase
 
 
@@ -33,7 +33,7 @@ def main():
     print(f"Connected to database: {db_config['database']} at {db_config['host']}:{db_config['port']}")
 
     print("Creating tables...")
-    db.create_tables([Url, User, Event, HealthCheck, RiskScore], safe=True)
+    db.create_tables([Url, User, Event, HealthCheck, RiskScore, RequestFingerprint], safe=True)
     print("✅ Tables created successfully!")
 
     print("\nTables:")
@@ -42,6 +42,7 @@ def main():
     print("  - events")
     print("  - health_checks")
     print("  - risk_scores")
+    print("  - request_fingerprints")
 
     print("\n=== Setup complete! ===")
     print("\nNext steps:")

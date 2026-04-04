@@ -1,14 +1,24 @@
 import json
-from datetime import datetime, timedelta
-
-import whois
-from peewee import fn
+from urllib.parse import urlparse
 
 from app.models.event import Event
 from app.models.health_check import HealthCheck
 from app.models.risk_score import RiskScore
 from app.models.url import Url
 from app.services import cache
+from app.utils import utc_now_naive
+
+SUSPICIOUS_TLDS = {
+    "zip",
+    "top",
+    "click",
+    "xyz",
+    "gq",
+    "tk",
+    "ml",
+    "work",
+    "link",
+}
 
 
 def compute_risk_score(url_id):
@@ -16,13 +26,13 @@ def compute_risk_score(url_id):
     Compute a 0-100 risk score for a URL based on multiple signals.
 
     Scoring rules:
-    - +35: inactive URL with hit count > 5 (ghost probe detection)
-    - +25: dead destination (4xx/5xx status)
-    - +20: user deletion spike (>3 deletes in 1 hour)
-    - +10: redirect chain > 2
-    - +10: domain registered < 30 days ago
+    - +30: destination domain is dead
+    - +20: redirect chain > 3 hops
+    - +15: link receives many ghost probes
+    - +20: suspicious TLD detected
+    - +15: repeated delete/recreate behavior detected
 
-    Tiers: 0-30 SAFE, 31-60 SUSPICIOUS, 61-100 THREAT
+    Tiers: 0-30 SAFE, 31-60 WATCHLIST, 61-100 THREAT
     """
     url = Url.select().where(Url.id == url_id).first()
     if not url:
@@ -30,15 +40,6 @@ def compute_risk_score(url_id):
 
     score = 0
     signals = {}
-
-    if not url.is_active:
-        hit_count = Event.select().where(
-            (Event.url_id == url_id) & (Event.event_type == "redirect")
-        ).count()
-        if hit_count > 5:
-            score += 35
-            signals["ghost_probe"] = True
-            signals["hit_count"] = hit_count
 
     latest_health = (
         HealthCheck.select()
@@ -48,58 +49,58 @@ def compute_risk_score(url_id):
     )
 
     if latest_health:
-        if latest_health.status_code and (
-            400 <= latest_health.status_code < 600
-        ):
-            score += 25
-            signals["dead_destination"] = True
+        is_dead_destination = (
+            latest_health.health_status in {"DEAD", "SSL_INVALID"}
+            or (
+                latest_health.status_code is not None
+                and 400 <= latest_health.status_code < 600
+            )
+        )
+
+        if is_dead_destination:
+            score += 30
+            signals["destination_dead"] = True
             signals["status_code"] = latest_health.status_code
 
-        if latest_health.redirect_chain_length > 2:
-            score += 10
+        if latest_health.redirect_chain_length > 3:
+            score += 20
             signals["long_redirect_chain"] = True
             signals["chain_length"] = latest_health.redirect_chain_length
 
-    if url.user_id:
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-        delete_count = (
-            Event.select()
-            .where(
-                (Event.user_id == url.user_id)
-                & (Event.event_type == "deleted")
-                & (Event.timestamp >= one_hour_ago)
-            )
-            .count()
-        )
-        if delete_count > 3:
-            score += 20
-            signals["deletion_spike"] = True
-            signals["deletes_last_hour"] = delete_count
+    ghost_probe_count = Event.select().where(
+        (Event.url_id == url_id) & (Event.event_type == "ghost_probe")
+    ).count()
+    if ghost_probe_count >= 10:
+        score += 15
+        signals["ghost_probe_pressure"] = True
+        signals["ghost_probe_count"] = ghost_probe_count
 
-    try:
-        from urllib.parse import urlparse
-        domain = urlparse(url.original_url).netloc
-        if domain:
-            domain_info = whois.whois(domain)
-            if domain_info and domain_info.creation_date:
-                creation_date = domain_info.creation_date
-                if isinstance(creation_date, list):
-                    creation_date = creation_date[0]
+    parsed = urlparse(url.original_url)
+    hostname = (parsed.hostname or "").lower()
+    tld = hostname.rsplit(".", 1)[-1] if "." in hostname else ""
+    if tld in SUSPICIOUS_TLDS:
+        score += 20
+        signals["suspicious_tld"] = tld
 
-                age_days = (datetime.utcnow() - creation_date).days
-                if age_days < 30:
-                    score += 10
-                    signals["new_domain"] = True
-                    signals["domain_age_days"] = age_days
-    except Exception:
-        pass
+    delete_count = Event.select().where(
+        (Event.url_id == url_id) & (Event.event_type == "deleted")
+    ).count()
+    create_count = Event.select().where(
+        (Event.url_id == url_id) & (Event.event_type == "created")
+    ).count()
+
+    if delete_count >= 2 or (delete_count >= 1 and create_count >= 2):
+        score += 15
+        signals["delete_recreate_pattern"] = True
+        signals["delete_count"] = delete_count
+        signals["create_count"] = create_count
 
     score = min(score, 100)
 
     if score <= 30:
         tier = "SAFE"
     elif score <= 60:
-        tier = "SUSPICIOUS"
+        tier = "WATCHLIST"
     else:
         tier = "THREAT"
 
@@ -108,7 +109,7 @@ def compute_risk_score(url_id):
         "score": score,
         "signals": json.dumps(signals),
         "tier": tier,
-        "computed_at": datetime.utcnow(),
+        "computed_at": utc_now_naive(),
     }
 
     RiskScore.insert(**risk_data).on_conflict(
@@ -117,7 +118,7 @@ def compute_risk_score(url_id):
             RiskScore.score: score,
             RiskScore.signals: json.dumps(signals),
             RiskScore.tier: tier,
-            RiskScore.computed_at: datetime.utcnow(),
+            RiskScore.computed_at: utc_now_naive(),
         },
     ).execute()
 

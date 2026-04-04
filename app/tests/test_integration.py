@@ -1,8 +1,11 @@
 import json
+import os
+import tempfile
 
 import pytest
 
 from app.models import Event, Url
+from app.services import security
 
 
 class TestShortenURL:
@@ -121,6 +124,28 @@ class TestRedirectURL:
         assert data["error"] == "Link inactive"
         assert data["code"] == 410
 
+    def test_redirect_quarantined_url(self, client, sample_url):
+        """Test 410 error for quarantined short code."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as tmp:
+            tmp.write("~^/abc123$ 1;\n")
+            blocked_path = tmp.name
+
+        original_path = security.BLOCKED_CODES_PATH
+        security.BLOCKED_CODES_PATH = blocked_path
+        try:
+            response = client.get(f"/{sample_url.short_code}")
+        finally:
+            security.BLOCKED_CODES_PATH = original_path
+            try:
+                os.remove(blocked_path)
+            except OSError:
+                pass
+
+        assert response.status_code == 410
+        data = response.get_json()
+        assert data["error"] == "This short code has been quarantined due to suspicious activity"
+        assert data["code"] == 410
+
 
 class TestUpdateURL:
     def test_update_url_title(self, client, sample_url):
@@ -226,6 +251,26 @@ class TestListURLs:
         data = response.get_json()
         assert isinstance(data, list)
         assert all(url["user_id"] == sample_user.id for url in data)
+
+
+class TestRiskEndpoint:
+    def test_get_url_risk(self, client, sample_url):
+        """Test retrieving computed risk score for URL."""
+        response = client.get(f"/urls/{sample_url.id}/risk")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["url_id"] == sample_url.id
+        assert "score" in data
+        assert "tier" in data
+
+    def test_get_url_risk_not_found(self, client):
+        """Test risk endpoint returns 404 for unknown URL."""
+        response = client.get("/urls/999999/risk")
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "Not found"
 
 
 class TestHealthEndpoint:
