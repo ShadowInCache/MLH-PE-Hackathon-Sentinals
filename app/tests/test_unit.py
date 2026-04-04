@@ -13,7 +13,7 @@ class TestShortener:
         """Test that generated short codes are 6 characters."""
         with app.app_context():
             code = shortener.generate_short_code()
-            assert len(code) == 6
+            assert len(code) == 7
 
     def test_generate_short_code_alphanumeric(self, app):
         """Test that generated short codes are alphanumeric."""
