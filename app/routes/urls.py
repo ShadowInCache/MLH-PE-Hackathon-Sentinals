@@ -120,15 +120,18 @@ def redirect_url(short_code):
         if url and url.is_active:
             Event.create(url_id=url.id, user_id=url.user_id, event_type="redirect")
 
-        increment_url_redirects(short_code)
-        record_redirect_latency(max(time.perf_counter() - start_time, 0.0))
-        record_request_fingerprint(
-            short_code=short_code,
-            status_code=302,
-            client_ip=client_ip,
-            user_agent=user_agent,
-        )
-        return redirect(cached, code=302)
+            increment_url_redirects(short_code)
+            record_redirect_latency(max(time.perf_counter() - start_time, 0.0))
+            record_request_fingerprint(
+                short_code=short_code,
+                status_code=302,
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
+            return redirect(cached, code=302)
+
+        # Cache can contain stale mappings for deleted or inactive links.
+        cache.delete_cached_url(short_code)
 
     url = Url.select().where(Url.short_code == short_code).first()
 

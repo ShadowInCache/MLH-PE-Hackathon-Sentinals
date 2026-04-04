@@ -4,7 +4,7 @@ import pytest
 from peewee import SqliteDatabase
 
 from app import create_app
-from app.database import db
+from app.database import db, get_redis
 from app.models import Event, HealthCheck, RequestFingerprint, RiskScore, Url, User
 
 
@@ -18,6 +18,13 @@ def app():
     test_app.config["TESTING"] = True
 
     with test_app.app_context():
+        redis_client = get_redis()
+        if redis_client:
+            try:
+                redis_client.flushdb()
+            except Exception:
+                pass
+
         test_db = SqliteDatabase(
             ":memory:", pragmas={"foreign_keys": 1}, check_same_thread=False
         )
@@ -27,6 +34,12 @@ def app():
         yield test_app
         db.drop_tables([Url, User, Event, HealthCheck, RiskScore, RequestFingerprint])
         db.close()
+
+        if redis_client:
+            try:
+                redis_client.flushdb()
+            except Exception:
+                pass
 
 
 @pytest.fixture(scope="function")

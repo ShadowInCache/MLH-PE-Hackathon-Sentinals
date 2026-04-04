@@ -5,7 +5,7 @@ import tempfile
 import pytest
 
 from app.models import Event, Url
-from app.services import security
+from app.services import cache, security
 
 
 class TestShortenURL:
@@ -116,6 +116,22 @@ class TestRedirectURL:
         """Test 410 error for inactive URL."""
         sample_url.is_active = False
         sample_url.save()
+
+        response = client.get(f"/{sample_url.short_code}")
+
+        assert response.status_code == 410
+        data = response.get_json()
+        assert data["error"] == "Link inactive"
+        assert data["code"] == 410
+
+    def test_redirect_inactive_url_with_stale_cache(self, client, sample_url, monkeypatch):
+        """Test inactive URL does not redirect when stale cache entry exists."""
+        sample_url.is_active = False
+        sample_url.save()
+
+        monkeypatch.setattr(
+            cache, "get_cached_url", lambda _: sample_url.original_url
+        )
 
         response = client.get(f"/{sample_url.short_code}")
 
