@@ -112,19 +112,19 @@ This document captures key technical decisions made during the GhostLink impleme
 **Rationale:**
 - Simple to understand and debug
 - Each signal has clear threshold and point value
-- Tiers (SAFE/SUSPICIOUS/THREAT) provide actionable categories
+- Tiers (SAFE/WATCHLIST/THREAT) provide actionable categories
 - Signals stored as JSONB for explainability
 
 **Signals:**
-1. Ghost probe (+35): Inactive URL with >5 hits → likely malicious scanning
-2. Dead destination (+25): 4xx/5xx status → broken or abandoned link
-3. Deletion spike (+20): User deleted >3 URLs in 1 hour → suspicious behavior
-4. Long redirect chain (+10): >2 redirects → potential phishing obfuscation
-5. New domain (+10): Registered <30 days → higher risk profile
+1. Dead destination (+30): Latest health check indicates dead target
+2. Long redirect chain (+20): More than 3 redirects
+3. Ghost probe pressure (+15): High volume ghost probe events
+4. Suspicious TLD (+20): Domain uses risky top-level domain
+5. Delete/recreate pattern (+15): Repeated delete and recreate behavior
 
 **Trade-offs:**
 - Fixed weights don't adapt to new attack patterns (would need ML for that)
-- python-whois is slow (acceptable since we cache results)
+- Domain-only heuristics can misclassify edge cases without external intel feeds
 - No geographic or reputation signals (out of scope for MVP)
 
 ## Testing Strategy

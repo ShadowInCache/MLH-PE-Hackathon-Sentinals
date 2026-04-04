@@ -16,15 +16,15 @@ Built for the MLH Production Engineering Hackathon by Team Sentinals.
 
 #### 1. Risk Scorer
 Computes a 0-100 risk score for each URL based on multiple signals:
-- **+35 points**: Ghost probe detection (inactive URL hit >5 times)
-- **+25 points**: Dead destination (4xx/5xx status)
-- **+20 points**: User deletion spike (>3 deletes in 1 hour)
-- **+10 points**: Long redirect chain (>2 hops)
-- **+10 points**: New domain (registered <30 days ago)
+- **+30 points**: Destination domain health indicates dead target
+- **+20 points**: Redirect chain length >3 hops
+- **+15 points**: Ghost probe pressure (many inactive-link hits)
+- **+20 points**: Suspicious top-level domain (TLD)
+- **+15 points**: Repeated delete/recreate behavior
 
 **Tiers:**
 - 0-30: SAFE ✅
-- 31-60: SUSPICIOUS ⚠️
+- 31-60: WATCHLIST ⚠️
 - 61-100: THREAT 🚨
 
 #### 2. Link Health Checker
@@ -156,6 +156,9 @@ Health check with dependency status.
 
 ### GET /metrics
 Prometheus metrics in text format.
+
+### GET /urls/<id>/risk
+Return computed risk score, tier, and active signals for a URL.
 
 ## Tech Stack
 

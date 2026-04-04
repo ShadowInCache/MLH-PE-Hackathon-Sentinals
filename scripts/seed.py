@@ -6,7 +6,6 @@ Safe to run multiple times - uses upsert logic to avoid duplicates.
 import csv
 import os
 import sys
-from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -15,7 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.database import db
-from app.models import Event, HealthCheck, RiskScore, Url, User
+from app.models import Event, HealthCheck, RequestFingerprint, RiskScore, Url, User
+from app.utils import utc_now_naive
 
 
 def load_users_csv(filepath):
@@ -33,7 +33,7 @@ def load_users_csv(filepath):
                 defaults={
                     "username": row["username"],
                     "email": row["email"],
-                    "created_at": row.get("created_at", datetime.utcnow()),
+                    "created_at": row.get("created_at", utc_now_naive()),
                 },
             )
             if created:
@@ -64,8 +64,8 @@ def load_urls_csv(filepath):
                     "original_url": row["original_url"],
                     "title": row.get("title"),
                     "is_active": row.get("is_active", "1") == "1",
-                    "created_at": row.get("created_at", datetime.utcnow()),
-                    "updated_at": row.get("updated_at", datetime.utcnow()),
+                    "created_at": row.get("created_at", utc_now_naive()),
+                    "updated_at": row.get("updated_at", utc_now_naive()),
                 },
             )
             if created:
@@ -94,7 +94,7 @@ def load_events_csv(filepath):
                     "url_id": int(row["url_id"]),
                     "user_id": user_id,
                     "event_type": row["event_type"],
-                    "timestamp": row.get("timestamp", datetime.utcnow()),
+                    "timestamp": row.get("timestamp", utc_now_naive()),
                 },
             )
             if created:
@@ -123,7 +123,9 @@ def main():
     print(f"Connected to database: {db_config['database']}")
 
     with db.atomic():
-        db.create_tables([Url, User, Event, HealthCheck, RiskScore], safe=True)
+        db.create_tables(
+            [Url, User, Event, HealthCheck, RiskScore, RequestFingerprint], safe=True
+        )
         print("Tables created (if not exists)")
 
     data_dir = os.path.join(os.path.dirname(__file__), "..", "data")

@@ -1,0 +1,30 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: discord-default
+  group_by:
+    - alertname
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 1h
+
+receivers:
+  - name: discord-default
+    discord_configs:
+      # Replace with your real Discord webhook URL for live alert delivery.
+      - webhook_url: https://discord.com/api/webhooks/1490099879668617278/nLOQZh4CkRcvniHr9vCfXRF-WymSS-BGvoevGnE3ATXXLJAQwfv7OvYzz25As-hgFytU
+        send_resolved: true
+        title: "[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}"
+        message: >-
+          **Severity:** {{ .CommonLabels.severity }}
+          {{- if .CommonAnnotations.summary }}
+          \n**Summary:** {{ .CommonAnnotations.summary }}
+          {{- end }}
+          {{- if .CommonAnnotations.message }}
+          \n**Description:** {{ .CommonAnnotations.message }}
+          {{- end }}
+          \n**Affected instances:**
+          {{- range .Alerts }}
+          \n- {{ .Labels.instance }} ({{ .Status }})
+          {{- end }}

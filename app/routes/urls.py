@@ -1,4 +1,4 @@
-from datetime import datetime
+import time
 from urllib.parse import urlparse
 
 from flask import Blueprint, jsonify, redirect, request
@@ -7,8 +7,17 @@ from playhouse.shortcuts import model_to_dict
 
 from app.models.event import Event
 from app.models.url import Url
-from app.routes.health import increment_ghost_probes, increment_urls_created
+from app.routes.health import (
+    increment_ghost_probes,
+    increment_url_redirects,
+    increment_urls_created,
+    increment_urls_deleted,
+    record_redirect_latency,
+)
 from app.services import cache, shortener
+from app.services.risk_scorer import compute_risk_score, get_risk_score
+from app.services.security import is_quarantined_code, record_request_fingerprint
+from app.utils import utc_now_naive
 
 urls_bp = Blueprint("urls", __name__)
 
@@ -20,6 +29,13 @@ def is_valid_url(url):
         return all([result.scheme, result.netloc]) and result.scheme in ["http", "https"]
     except Exception:
         return False
+
+
+def get_client_ip():
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.remote_addr or "unknown"
 
 
 @urls_bp.route("/shorten", methods=["POST"])
@@ -63,7 +79,8 @@ def shorten_url():
         Event.create(url_id=url.id, user_id=user_id, event_type="created")
 
         cache.cache_url(short_code, original_url)
-        
+
+        compute_risk_score(url.id)
         increment_urls_created()
 
         return jsonify({"id": url.id, "short_code": short_code}), 201
@@ -75,18 +92,82 @@ def shorten_url():
 @urls_bp.route("/<short_code>", methods=["GET"])
 def redirect_url(short_code):
     """Redirect to the original URL."""
-    # Check database for URL and active status
-    # Note: We don't use cache here to ensure we always check is_active status
-    # This prevents redirecting to deactivated URLs that might still be cached
+    start_time = time.perf_counter()
+    client_ip = get_client_ip()
+    user_agent = request.headers.get("User-Agent", "unknown")
+
+    if is_quarantined_code(short_code):
+        record_request_fingerprint(
+            short_code=short_code,
+            status_code=410,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            is_quarantined=True,
+        )
+        return (
+            jsonify(
+                {
+                    "error": "This short code has been quarantined due to suspicious activity",
+                    "code": 410,
+                }
+            ),
+            410,
+        )
+
+    cached = cache.get_cached_url(short_code)
+    if cached:
+        url = Url.select().where(Url.short_code == short_code).first()
+        if url and url.is_active:
+            Event.create(url_id=url.id, user_id=url.user_id, event_type="redirect")
+
+            increment_url_redirects(short_code)
+            record_redirect_latency(max(time.perf_counter() - start_time, 0.0))
+            record_request_fingerprint(
+                short_code=short_code,
+                status_code=302,
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
+            return redirect(cached, code=302)
+
+        # Cache can contain stale mappings for deleted or inactive links.
+        cache.delete_cached_url(short_code)
     url = Url.select().where(Url.short_code == short_code).first()
 
     if not url:
+        record_request_fingerprint(
+            short_code=short_code,
+            status_code=404,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            is_invalid_short_code=True,
+        )
         return jsonify({"error": "Not found", "code": 404}), 404
 
     if not url.is_active:
         increment_ghost_probes()
+        Event.create(url_id=url.id, user_id=url.user_id, event_type="ghost_probe")
+        record_request_fingerprint(
+            short_code=short_code,
+            status_code=410,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            is_ghost_probe=True,
+        )
+        compute_risk_score(url.id)
         return jsonify({"error": "Link inactive", "code": 410}), 410
 
+    cache.cache_url(short_code, url.original_url)
+
+    Event.create(url_id=url.id, user_id=url.user_id, event_type="redirect")
+    increment_url_redirects(short_code)
+    record_redirect_latency(max(time.perf_counter() - start_time, 0.0))
+    record_request_fingerprint(
+        short_code=short_code,
+        status_code=302,
+        client_ip=client_ip,
+        user_agent=user_agent,
+    )
     return redirect(url.original_url, code=302)
 
 
@@ -116,10 +197,11 @@ def update_url(url_id):
         if not url.is_active:
             cache.delete_cached_url(url.short_code)
 
-    url.updated_at = datetime.utcnow()
+    url.updated_at = utc_now_naive()
     url.save()
 
     Event.create(url_id=url.id, user_id=data.get("user_id"), event_type="updated")
+    compute_risk_score(url.id)
 
     return jsonify({"message": "updated"}), 200
 
@@ -132,15 +214,31 @@ def delete_url(url_id):
         return jsonify({"error": "Not found", "code": 404}), 404
 
     url.is_active = False
-    url.updated_at = datetime.utcnow()
+    url.updated_at = utc_now_naive()
     url.save()
 
     cache.delete_cached_url(url.short_code)
 
     user_id = request.get_json(silent=True).get("user_id") if request.get_json(silent=True) else None
     Event.create(url_id=url.id, user_id=user_id, event_type="deleted")
+    increment_urls_deleted()
+    compute_risk_score(url.id)
 
     return jsonify({"message": "deleted"}), 200
+
+
+@urls_bp.route("/urls/<int:url_id>/risk", methods=["GET"])
+def get_url_risk(url_id):
+    """Return risk score details for a URL."""
+    url = Url.select().where(Url.id == url_id).first()
+    if not url:
+        return jsonify({"error": "Not found", "code": 404}), 404
+
+    risk = get_risk_score(url_id)
+    if not risk:
+        return jsonify({"error": "Risk score unavailable", "code": 404}), 404
+
+    return jsonify({"url_id": url_id, **risk}), 200
 
 
 @urls_bp.route("/urls", methods=["GET"])

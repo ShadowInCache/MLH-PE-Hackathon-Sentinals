@@ -1,0 +1,85 @@
+groups:
+  - name: ghostlink-recording-rules
+    rules:
+      - record: ghostlink_affected_short_codes_total
+        expr: sum(ghostlink_threat_links_total) + sum(ghostlink_quarantined_urls_total)
+
+      - record: ghostlink_estimated_user_impact
+        expr: sum(rate(ghostlink_affected_redirects_total[5m])) * 0.35
+
+      - record: ghostlink_active_alerts
+        expr: sum(ALERTS{alertstate="firing"})
+
+  - name: ghostlink-alerts
+    rules:
+      - alert: ServiceDown
+        expr: up{job="ghostlink-backends"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GhostLink instance down"
+          message: "GhostLink instance {{ $labels.instance }} is down"
+
+      - alert: HighErrorRate
+        expr: sum by (instance) (rate(destination_dead_total[5m])) / clamp_min(sum by (instance) (rate(url_redirects_total[5m])), 0.001) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redirect failure ratio above threshold"
+          message: "Redirect failure ratio above 5% on {{ $labels.instance }}"
+
+      - alert: GhostProbeSpike
+        expr: rate(ghost_probes_total[1m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead-link probing surge"
+          message: "Dead link probing detected — possible scraper attack"
+
+      - alert: DeletionSpike
+        expr: rate(urls_deleted_total[10m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "URL deletion surge"
+          message: "Unusual deletion spike — possible user churn event"
+
+      - alert: CanaryFailureDetected
+        expr: increase(ghostlink_canary_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Synthetic canary failure detected"
+          message: "One or more canary short codes returned non-200/non-302 responses"
+
+      - alert: SuspiciousClientSpike
+        expr: ghostlink_suspicious_clients_total > 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Suspicious client spike"
+          message: "Suspicious clients exceeded normal baseline"
+
+      - alert: BlockedRequestSpike
+        expr: increase(ghostlink_blocked_requests_total[5m]) > 20
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Blocked request surge"
+          message: "Blocked request volume increased rapidly in the last 5 minutes"
+
+      - alert: ThreatLinkSurge
+        expr: ghostlink_threat_links_total > 25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Threat link population elevated"
+          message: "THREAT-classified short codes exceeded 25"

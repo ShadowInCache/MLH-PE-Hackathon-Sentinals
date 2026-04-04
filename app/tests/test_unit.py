@@ -58,12 +58,12 @@ class TestCache:
     def test_cache_and_get_risk_score(self, app):
         """Test risk score caching and retrieval."""
         with app.app_context():
-            score_data = {"score": 50, "tier": "SUSPICIOUS", "signals": {}}
+            score_data = {"score": 50, "tier": "WATCHLIST", "signals": {}}
             cache.cache_risk_score(1, score_data)
             result = cache.get_cached_risk_score(1)
             if result:
                 assert result["score"] == 50
-                assert result["tier"] == "SUSPICIOUS"
+                assert result["tier"] == "WATCHLIST"
 
 
 class TestRiskScorer:
@@ -92,27 +92,24 @@ class TestRiskScorer:
             )
 
             result = risk_scorer.compute_risk_score(sample_url.id)
-            assert result["score"] >= 25
+            assert result["score"] >= 30
             signals = json.loads(result["signals"])
-            assert signals.get("dead_destination") is True
+            assert signals.get("destination_dead") is True
 
     def test_compute_risk_score_ghost_probe(self, app, sample_url):
         """Test risk score with ghost probe detection."""
         with app.app_context():
-            sample_url.is_active = False
-            sample_url.save()
-
-            for _ in range(6):
+            for _ in range(10):
                 Event.create(
                     url_id=sample_url.id,
                     user_id=sample_url.user_id,
-                    event_type="redirect",
+                    event_type="ghost_probe",
                 )
 
             result = risk_scorer.compute_risk_score(sample_url.id)
-            assert result["score"] >= 35
+            assert result["score"] >= 15
             signals = json.loads(result["signals"])
-            assert signals.get("ghost_probe") is True
+            assert signals.get("ghost_probe_pressure") is True
 
     def test_compute_risk_score_long_chain(self, app, sample_url):
         """Test risk score with long redirect chain."""
@@ -144,21 +141,18 @@ class TestRiskScorer:
                 )
 
             result = risk_scorer.compute_risk_score(url.id)
-            assert result["score"] >= 20
+            assert result["score"] >= 15
             signals = json.loads(result["signals"])
-            assert signals.get("deletion_spike") is True
+            assert signals.get("delete_recreate_pattern") is True
 
     def test_compute_risk_score_threat_tier(self, app, sample_url):
         """Test risk score reaches THREAT tier."""
         with app.app_context():
-            sample_url.is_active = False
-            sample_url.save()
-
-            for _ in range(6):
+            for _ in range(12):
                 Event.create(
                     url_id=sample_url.id,
                     user_id=sample_url.user_id,
-                    event_type="redirect",
+                    event_type="ghost_probe",
                 )
 
             HealthCheck.create(
@@ -175,9 +169,16 @@ class TestRiskScorer:
     def test_get_risk_score_from_cache(self, app, sample_url):
         """Test risk score retrieval from cache."""
         with app.app_context():
-            cache_data = {"score": 40, "tier": "SUSPICIOUS", "signals": {}}
+            RiskScore.create(
+                url_id=sample_url.id,
+                score=40,
+                tier="WATCHLIST",
+                signals=json.dumps({}),
+            )
+
+            cache_data = {"score": 40, "tier": "WATCHLIST", "signals": {}}
             cache.cache_risk_score(sample_url.id, cache_data)
 
             result = risk_scorer.get_risk_score(sample_url.id)
             assert result["score"] == 40
-            assert result["tier"] == "SUSPICIOUS"
+            assert result["tier"] == "WATCHLIST"

@@ -1,15 +1,11 @@
 import os
-import sys
-import tempfile
 
 import pytest
-
-# Add project root to Python path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from peewee import SqliteDatabase
 
 from app import create_app
-from app.database import db
-from app.models import Event, HealthCheck, RiskScore, Url, User
+from app.database import db, get_redis
+from app.models import Event, HealthCheck, RequestFingerprint, RiskScore, Url, User
 
 
 @pytest.fixture(scope="function")
@@ -22,9 +18,28 @@ def app():
     test_app.config["TESTING"] = True
 
     with test_app.app_context():
-        db.create_tables([Url, User, Event, HealthCheck, RiskScore])
+        redis_client = get_redis()
+        if redis_client:
+            try:
+                redis_client.flushdb()
+            except Exception:
+                pass
+
+        test_db = SqliteDatabase(
+            ":memory:", pragmas={"foreign_keys": 1}, check_same_thread=False
+        )
+        db.initialize(test_db)
+        db.connect(reuse_if_open=True)
+        db.create_tables([Url, User, Event, HealthCheck, RiskScore, RequestFingerprint])
         yield test_app
-        db.drop_tables([Url, User, Event, HealthCheck, RiskScore])
+        db.drop_tables([Url, User, Event, HealthCheck, RiskScore, RequestFingerprint])
+        db.close()
+
+        if redis_client:
+            try:
+                redis_client.flushdb()
+            except Exception:
+                pass
 
 
 @pytest.fixture(scope="function")
