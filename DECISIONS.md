@@ -27,10 +27,18 @@ This document captures key technical decisions made during the GhostLink impleme
 - Graceful degradation: app works without Redis, just slower
 - Simple key-value model fits our needs perfectly
 
+**Important Note on Redirect Caching:**
+- **REMOVED** caching from redirect endpoint
+- Redirect always queries DB to check `is_active` status
+- This ensures ghost probe detection works correctly (410 Gone for inactive URLs)
+- Trade-off: Slightly higher DB load, but necessary for correctness
+- Alternative considered: Cache {url, is_active} tuple, but adds complexity
+
 **Trade-offs:**
 - Additional infrastructure dependency (but common in production)
 - Cache invalidation complexity (handled via explicit deletes on updates)
 - TTL tuning required for optimal hit rates
+- No redirect caching due to is_active requirement
 
 ### Background Workers: APScheduler
 **Decision:** APScheduler for link health checks (not Celery)  

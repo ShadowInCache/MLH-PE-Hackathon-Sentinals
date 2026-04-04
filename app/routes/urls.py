@@ -132,7 +132,6 @@ def redirect_url(short_code):
 
         # Cache can contain stale mappings for deleted or inactive links.
         cache.delete_cached_url(short_code)
-
     url = Url.select().where(Url.short_code == short_code).first()
 
     if not url:
@@ -169,7 +168,6 @@ def redirect_url(short_code):
         client_ip=client_ip,
         user_agent=user_agent,
     )
-
     return redirect(url.original_url, code=302)
 
 
