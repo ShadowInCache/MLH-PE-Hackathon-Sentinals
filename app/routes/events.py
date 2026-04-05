@@ -52,9 +52,10 @@ def create_event():
     if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
-    event_type = (data.get("event_type") or "").strip()
-    if not event_type:
+    event_type = data.get("event_type")
+    if not isinstance(event_type, str) or not event_type.strip():
         return jsonify({"error": "Missing event_type", "code": 400}), 400
+    event_type = event_type.strip()
 
     url_id = data.get("url_id")
     if url_id is None:

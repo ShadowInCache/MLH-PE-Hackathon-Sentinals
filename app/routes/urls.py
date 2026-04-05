@@ -220,6 +220,8 @@ def update_url(url_id):
         url.title = data["title"]
 
     if "is_active" in data:
+        if not isinstance(data["is_active"], bool):
+            return jsonify({"error": "Invalid is_active, must be boolean", "code": 400}), 400
         url.is_active = data["is_active"]
         if not url.is_active:
             cache.delete_cached_url(url.short_code)
