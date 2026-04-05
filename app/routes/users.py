@@ -137,18 +137,15 @@ def create_user():
         "created_at": data.get("created_at") or utc_now_naive(),
     }
 
-    try:
-        with db.atomic():
-            user = User.create(**payload)
+    # Check before insert to avoid IntegrityError + broken transaction state
+    user = User.select().where(User.email == email).first()
+    if user is None:
+        user = User.select().where(User.username == username).first()
+    if user is not None:
         return jsonify(user_to_dict(user)), 201
-    except IntegrityError:
-        # Savepoint rolled back cleanly — safe to query now
-        user = User.select().where(
-            (User.email == email) | (User.username == username)
-        ).first()
-        if user:
-            return jsonify(user_to_dict(user)), 201
-        return jsonify({"error": "User already exists", "code": 409}), 409
+
+    user = User.create(**payload)
+    return jsonify(user_to_dict(user)), 201
 
 
 @users_bp.route("/users/<int:user_id>", methods=["PUT", "PATCH"])
