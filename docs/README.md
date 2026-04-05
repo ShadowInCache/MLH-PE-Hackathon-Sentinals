@@ -38,6 +38,7 @@ git clone https://github.com/stealthwhizz/MLH-PE-Hackathon-Sentinals.git && cd M
 - docs/API_REFERENCE.md
 - docs/RUNBOOK.md
 - docs/CAPACITY.md
+- docs/BOTTLENECK_REPORT.md
 - docs/FAILURE_EDGE_CASES.md
 
 ## Service and Container Names
@@ -195,6 +196,10 @@ k6 run k6/load_test.js
 ## Failure and Edge Cases
 
 Detailed API and operational failure handling behavior is documented in `docs/FAILURE_EDGE_CASES.md`.
+
+## Bottleneck Analysis Report
+
+Capacity bottleneck findings and mitigation priorities are documented in `docs/BOTTLENECK_REPORT.md`.
 
 ## API Endpoint Reference
 

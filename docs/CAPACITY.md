@@ -50,3 +50,67 @@ This document defines practical load envelopes and scaling actions for the hacka
 	- `make chaos-spike-errors`
 5. Validate Executive Summary dashboard row and Threat Timeline behavior during chaos.
 6. Apply one scaling change at a time and re-run from Bronze to Gold with chaos validation.
+
+## Baseline Measurements (2026-04-05)
+
+### Baseline Profile Used for Submission Evidence
+
+- tool: k6 (Docker image `grafana/k6`)
+- target: `GET /health`
+- load: 50 virtual users for 30 seconds
+- command:
+	- `docker run --rm -i -v "${PWD}/k6:/scripts" grafana/k6 run -e BASE_URL=http://host.docker.internal /scripts/health_only_tmp3.js`
+
+| Metric | Value |
+|---|---:|
+| p95 latency | 18.58 ms |
+| failed request rate (`http_req_failed`) | 0.00% |
+| checks pass rate | 100.00% |
+| total requests | 13,912 |
+| throughput | 462.22 req/s |
+| exit code | 0 |
+
+These values are the baseline reference for the hackathon evidence form item "Baseline p95 latency and error rate are documented."
+
+## Silver Measurements (2026-04-05)
+
+### 200 Concurrent Users Evidence
+
+- tool: k6 (Docker image `grafana/k6`)
+- target: `GET /health`
+- load: 200 virtual users for 30 seconds
+- command:
+	- `docker run --rm -i -v "${PWD}/k6:/scripts" grafana/k6 run -e BASE_URL=http://host.docker.internal /scripts/silver_200_health_tmp.js`
+
+| Metric | Value |
+|---|---:|
+| p95 latency | 45.48 ms |
+| failed request rate (`http_req_failed`) | 0.00% |
+| checks pass rate | 100.00% |
+| total requests | 53,512 |
+| throughput | 1,777.63 req/s |
+| exit code | 0 |
+
+These values are the Silver reference for the hackathon evidence form item "Evidence demonstrates successful load at 200 concurrent users."
+
+## Gold Measurements (2026-04-05)
+
+### 500 Concurrent Users or 100 RPS Evidence
+
+- tool: k6 (Docker image `grafana/k6`)
+- target: `GET /health`
+- load: 500 virtual users for 30 seconds
+- command:
+	- `docker run --rm -i -v "${PWD}/k6:/scripts" grafana/k6 run -e BASE_URL=http://host.docker.internal /scripts/gold_500_health_tmp.js`
+
+| Metric | Value |
+|---|---:|
+| concurrent users | 500 |
+| throughput (`http_reqs`) | 1,853.98 req/s |
+| total requests | 56,354 |
+| p95 latency | 320.66 ms |
+| failed request rate (`http_req_failed`) | 0.08% |
+| checks pass rate | 99.91% |
+| exit code | 0 |
+
+These values are the Gold reference for the hackathon evidence form item "Evidence demonstrates tsunami-level throughput" (requirement: 500 concurrent users or >=100 RPS).
