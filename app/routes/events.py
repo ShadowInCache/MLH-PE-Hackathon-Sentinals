@@ -72,13 +72,11 @@ def create_event():
             return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
     # Accept referrer at top level or nested inside details dict
-    details = data.get("details") or {}
-    if isinstance(details, str):
-        import json as _json
-        try:
-            details = _json.loads(details)
-        except Exception:
-            details = {}
+    details = data.get("details")
+    if details is not None and not isinstance(details, dict):
+        return jsonify({"error": "Invalid details, must be an object", "code": 400}), 400
+    if details is None:
+        details = {}
     referrer = data.get("referrer") or details.get("referrer")
 
     event = Event.create(

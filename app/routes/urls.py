@@ -163,7 +163,6 @@ def redirect_url(short_code):
 
     if not url.is_active:
         increment_ghost_probes()
-        Event.create(url_id=url.id, user_id=url.user_id, event_type="ghost_probe")
         record_request_fingerprint(short_code=short_code, status_code=410, client_ip=client_ip, user_agent=user_agent, is_ghost_probe=True)
         compute_risk_score(url.id)
         return jsonify({"error": "Link inactive", "code": 410}), 410
