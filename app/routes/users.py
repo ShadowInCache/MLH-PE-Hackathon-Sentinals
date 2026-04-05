@@ -101,9 +101,11 @@ def load_users_bulk():
     status_code = 201 if inserted > 0 else 200
     return jsonify({
         "file": file_path.name,
-        "processed": processed,
+        "imported": inserted,
         "loaded": inserted,
+        "processed": processed,
         "skipped": skipped,
+        "row_count": inserted,
     }), status_code
 
 

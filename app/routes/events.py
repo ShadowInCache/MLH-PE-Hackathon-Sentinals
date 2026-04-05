@@ -71,7 +71,15 @@ def create_event():
         except (TypeError, ValueError):
             return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
-    referrer = data.get("referrer")
+    # Accept referrer at top level or nested inside details dict
+    details = data.get("details") or {}
+    if isinstance(details, str):
+        import json as _json
+        try:
+            details = _json.loads(details)
+        except Exception:
+            details = {}
+    referrer = data.get("referrer") or details.get("referrer")
 
     event = Event.create(
         url_id=url_id,

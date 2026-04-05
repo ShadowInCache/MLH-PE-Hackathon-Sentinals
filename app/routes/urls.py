@@ -214,7 +214,9 @@ def update_url(url_id):
     Event.create(url_id=url.id, user_id=data.get("user_id"), event_type="updated")
     compute_risk_score(url.id)
 
-    return jsonify({"message": "updated"}), 200
+    result = url_to_dict(url)
+    result["message"] = "updated"
+    return jsonify(result), 200
 
 
 @urls_bp.route("/urls/<int:url_id>", methods=["DELETE"])
