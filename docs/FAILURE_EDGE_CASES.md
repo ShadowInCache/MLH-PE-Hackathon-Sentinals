@@ -19,19 +19,19 @@ This note explains how GhostLink handles API failures, degraded dependencies, an
 | `POST /shorten` | Custom code already exists | `409` | Returns `{"error": "Short code exists", "code": 409}` |
 | `POST /shorten` | Generator cannot allocate code | `500` | Returns `{"error": "Failed to generate short code", "code": 500}` |
 | `POST /urls` | Missing `user_id` | `400` | Returns `{"error": "Missing user_id", "code": 400}` |
-| `GET /<short_code>` | Code quarantined | `410` | Returns quarantine JSON and records blocked fingerprint |
-| `GET /<short_code>` | Code unknown | `404` | Returns `{"error": "Not found", "code": 404}` and records invalid hit |
-| `GET /<short_code>` | Code inactive (soft deleted) | `410` | Returns `{"error": "Link inactive", "code": 410}` and emits ghost probe event |
-| `GET /<short_code>` | Code valid and active | `302` | Redirects to destination URL |
-| `PATCH /urls/<id>` | Missing JSON body | `400` | Returns `{"error": "Missing request body", "code": 400}` |
-| `PATCH /urls/<id>` | Unknown fields or no mutable fields | `400` | Returns `{"error": "Invalid request body", "code": 400}` or `{"error": "Missing update fields", "code": 400}` |
-| `PATCH /urls/<id>` | Ownership mismatch (`user_id`) | `403` | Returns `{"error": "Forbidden", "code": 403}` |
-| `PATCH /urls/<id>` | URL id not found | `404` | Returns `{"error": "Not found", "code": 404}` |
-| `PATCH /urls/<id>` | Invalid `original_url` | `422` | Returns `{"error": "Invalid URL", "code": 422}` |
-| `DELETE /urls/<id>` | Ownership mismatch (`user_id`) | `403` | Returns `{"error": "Forbidden", "code": 403}` |
-| `DELETE /urls/<id>` | URL id not found | `404` | Returns `{"error": "Not found", "code": 404}` |
-| `GET /urls/<id>/risk` | URL id not found | `404` | Returns `{"error": "Not found", "code": 404}` |
-| `GET /urls/<id>/risk` | Risk record unavailable | `404` | Returns `{"error": "Risk score unavailable", "code": 404}` |
+| `GET /{short_code}` | Code quarantined | `410` | Returns quarantine JSON and records blocked fingerprint |
+| `GET /{short_code}` | Code unknown | `404` | Returns `{"error": "Not found", "code": 404}` and records invalid hit |
+| `GET /{short_code}` | Code inactive (soft deleted) | `410` | Returns `{"error": "Link inactive", "code": 410}` and emits ghost probe event |
+| `GET /{short_code}` | Code valid and active | `302` | Redirects to destination URL |
+| `PATCH /urls/{id}` | Missing JSON body | `400` | Returns `{"error": "Missing request body", "code": 400}` |
+| `PATCH /urls/{id}` | Unknown fields or no mutable fields | `400` | Returns `{"error": "Invalid request body", "code": 400}` or `{"error": "Missing update fields", "code": 400}` |
+| `PATCH /urls/{id}` | Ownership mismatch (`user_id`) | `403` | Returns `{"error": "Forbidden", "code": 403}` |
+| `PATCH /urls/{id}` | URL id not found | `404` | Returns `{"error": "Not found", "code": 404}` |
+| `PATCH /urls/{id}` | Invalid `original_url` | `422` | Returns `{"error": "Invalid URL", "code": 422}` |
+| `DELETE /urls/{id}` | Ownership mismatch (`user_id`) | `403` | Returns `{"error": "Forbidden", "code": 403}` |
+| `DELETE /urls/{id}` | URL id not found | `404` | Returns `{"error": "Not found", "code": 404}` |
+| `GET /urls/{id}/risk` | URL id not found | `404` | Returns `{"error": "Not found", "code": 404}` |
+| `GET /urls/{id}/risk` | Risk record unavailable | `404` | Returns `{"error": "Risk score unavailable", "code": 404}` |
 | `GET /health` | Database probe fails | `503` | Returns degraded health payload |
 
 ## Dependency Degradation Behavior

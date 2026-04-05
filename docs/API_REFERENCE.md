@@ -22,13 +22,21 @@ No authentication is required in the current hackathon implementation.
 
 - `X-GhostLink-Version`: release version served by the responding app instance
 
+## Endpoint Template Style
+
+Endpoint sections in this document follow one wording pattern:
+
+- `Request Example`
+- `Success Response`
+- `Error Responses`
+
 ## Endpoints
 
 ### POST /shorten
 
 Create a short URL.
 
-Example:
+Request Example:
 
 ```bash
 curl -X POST http://localhost/shorten \
@@ -40,7 +48,7 @@ curl -X POST http://localhost/shorten \
   }'
 ```
 
-Successful response (`201`):
+Success Response (`201`):
 
 ```json
 {
@@ -49,7 +57,7 @@ Successful response (`201`):
 }
 ```
 
-Error responses:
+Error Responses:
 
 - `400` missing body, malformed JSON, or invalid request field type
 - `409` short code already exists
@@ -60,7 +68,7 @@ Error responses:
 
 Create a short URL with full URL record response. `user_id` is required on this route.
 
-Example:
+Request Example:
 
 ```bash
 curl -X POST http://localhost/urls \
@@ -72,9 +80,9 @@ curl -X POST http://localhost/urls \
   }'
 ```
 
-Successful response (`201`): JSON URL object including `id`, `short_code`, `original_url`, and metadata fields.
+Success Response (`201`): JSON URL object including `id`, `short_code`, `original_url`, and metadata fields.
 
-Error responses:
+Error Responses:
 
 - `400` missing body, malformed JSON, missing `original_url`, missing `user_id`, or invalid request field type
 - `409` short code already exists
@@ -85,15 +93,18 @@ Error responses:
 
 Resolve a short code.
 
-Example:
+Request Example:
 
 ```bash
 curl -i http://localhost/abc123
 ```
 
-Response behavior:
+Success Response:
 
 - `302` redirect to destination URL
+
+Error Responses:
+
 - `404` unknown short code
 - `410` inactive short code
 - `410` quarantined short code
@@ -107,20 +118,24 @@ Alias redirect routes:
 
 List URLs. Optional filter by `user_id`.
 
-Examples:
+Request Example:
 
 ```bash
 curl http://localhost/urls
 curl "http://localhost/urls?user_id=1"
 ```
 
-Successful response (`200`): JSON array of URL records.
+Success Response (`200`): JSON array of URL records.
+
+Error Responses:
+
+- None expected for valid query parameters
 
 ### PATCH or PUT /urls/{id}
 
 Update URL fields.
 
-Example:
+Request Example:
 
 ```bash
 curl -X PATCH http://localhost/urls/123 \
@@ -132,13 +147,13 @@ curl -X PATCH http://localhost/urls/123 \
   }'
 ```
 
-Successful response (`200`):
+Success Response (`200`):
 
 ```json
 {"message": "updated"}
 ```
 
-Error responses:
+Error Responses:
 
 - `400` missing body, malformed JSON, unknown fields, or no mutable fields provided
 - `403` user mismatch when `user_id` does not match URL ownership
@@ -149,19 +164,19 @@ Error responses:
 
 Soft delete URL (sets `is_active=false`).
 
-Example:
+Request Example:
 
 ```bash
 curl -X DELETE http://localhost/urls/123
 ```
 
-Successful response (`200`):
+Success Response (`200`):
 
 ```json
 {"message": "deleted"}
 ```
 
-Error responses:
+Error Responses:
 
 - `400` malformed JSON body
 - `403` user mismatch when `user_id` does not match URL ownership
@@ -171,13 +186,13 @@ Error responses:
 
 Get risk score for a URL.
 
-Example:
+Request Example:
 
 ```bash
 curl http://localhost/urls/123/risk
 ```
 
-Typical response (`200`):
+Success Response (`200`):
 
 ```json
 {
@@ -190,7 +205,7 @@ Typical response (`200`):
 }
 ```
 
-Error responses:
+Error Responses:
 
 - `404` URL not found
 - `404` risk score unavailable
@@ -199,13 +214,13 @@ Error responses:
 
 Service health (DB + Redis view).
 
-Example:
+Request Example:
 
 ```bash
 curl http://localhost/health
 ```
 
-Response (`200`):
+Success Response (`200`):
 
 ```json
 {
@@ -228,7 +243,7 @@ Response (`200`):
 }
 ```
 
-Response (`503`) when DB probe fails:
+Error Response (`503`) when DB probe fails:
 
 ```json
 {
@@ -242,13 +257,17 @@ Response (`503`) when DB probe fails:
 
 Prometheus metrics.
 
-Example:
+Request Example:
 
 ```bash
 curl http://localhost/metrics
 ```
 
-Response (`200`): Prometheus exposition text.
+Success Response (`200`): Prometheus exposition text.
+
+Error Responses:
+
+- None documented (internal dependency failures surface via monitoring)
 
 Notable metric families:
 
@@ -266,17 +285,21 @@ Synthetic canary routes exposed for monitoring:
 - `GET /dashboard-demo`
 - `GET /support-demo`
 
-Example:
+Request Example:
 
 ```bash
 curl http://localhost/health-demo
 ```
 
-Response (`200`):
+Success Response (`200`):
 
 ```json
 {"status": "ok", "canary": "health-demo"}
 ```
+
+Error Responses:
+
+- None documented for canary route handlers
 
 ## Linked References
 

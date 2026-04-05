@@ -229,3 +229,4 @@ Capacity bottleneck findings and mitigation priorities are documented in `docs/B
 ## API Endpoint Reference
 
 Concrete endpoint docs and curl examples are documented in `docs/API_REFERENCE.md`.
+Endpoint sections there follow a single wording template: `Request Example`, `Success Response`, and `Error Responses`.

@@ -27,7 +27,7 @@ GhostLink shortens URLs, tracks redirect events, scores link risk, and monitors 
 ## What it does
 
 - Shorten URLs with auto-generated or custom short codes
-- Redirect users via `GET /<short_code>`
+- Redirect users via `GET /{short_code}`
 - Track click events with referrer and user attribution
 - Score link risk based on five signals (dead destination, ghost probes, suspicious clients, canary failures, threat patterns)
 - Quarantine high-risk short codes via Nginx without taking the app down
@@ -129,30 +129,37 @@ Truthy values accepted for all flags: `true`, `1`, `yes`, `on` (case-insensitive
 
 ## API Endpoints
 
+Endpoint request and response templates use the same style in [docs/API_REFERENCE.md](docs/API_REFERENCE.md): Request Example, Success Response, and Error Responses.
+
 ### Health
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Returns DB and Redis status |
+| `GET` | `/health` | Returns DB/Redis status plus release metadata and feature flags |
 | `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/health-demo`, `/promo-demo`, `/checkout-demo`, `/dashboard-demo`, `/support-demo` | Synthetic canary health routes |
 
 ### URLs
 | Method | Path | Description |
 |---|---|---|
+| `POST` | `/shorten` | Create short URL with compact response payload |
 | `POST` | `/urls` | Create a short URL |
 | `GET` | `/urls` | List all URLs (supports `?user_id=1&is_active=true`) |
-| `GET` | `/urls/<id>` | Get a URL by ID |
-| `PUT` | `/urls/<id>` | Update title or is_active |
-| `DELETE` | `/urls/<id>` | Soft delete a URL |
-| `GET` | `/<short_code>` | Redirect to original URL |
+| `GET` | `/urls/{id}` | Get a URL by ID |
+| `PATCH`, `PUT` | `/urls/{id}` | Update mutable URL fields |
+| `DELETE` | `/urls/{id}` | Soft delete a URL |
+| `GET` | `/urls/{id}/risk` | Get risk score details for URL |
+| `GET` | `/{short_code}` | Redirect to original URL |
+| `GET` | `/r/{short_code}` | Redirect alias |
+| `GET` | `/urls/{short_code}` | Redirect alias |
 
 ### Users
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/users` | Create a user |
 | `GET` | `/users` | List all users (supports `?page=1&per_page=10`) |
-| `GET` | `/users/<id>` | Get a user by ID |
-| `PUT` | `/users/<id>` | Update a user |
-| `DELETE` | `/users/<id>` | Delete a user |
+| `GET` | `/users/{id}` | Get a user by ID |
+| `PATCH`, `PUT` | `/users/{id}` | Update a user |
+| `DELETE` | `/users/{id}` | Delete a user |
 | `POST` | `/users/bulk` | Bulk import from CSV |
 
 ### Events

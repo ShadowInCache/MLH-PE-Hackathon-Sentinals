@@ -58,7 +58,7 @@ Trade-offs:
 Decision: Support both canonical and compatibility endpoints.
 
 Implemented compatibility includes:
-- URLs: `POST /shorten`, `POST /urls`, `GET /urls`, `GET /urls/<id>`, `PUT/PATCH /urls/<id>`, `DELETE /urls/<id>`, `GET /<short_code>`, `GET /r/<short_code>`.
+- URLs: `POST /shorten`, `POST /urls`, `GET /urls`, `GET /urls/{id}`, `PUT/PATCH /urls/{id}`, `DELETE /urls/{id}`, `GET /{short_code}`, `GET /r/{short_code}`.
 - Users: CRUD endpoints plus `POST /users/bulk`.
 - Events: `GET /events`, `POST /events` with filtering support.
 

@@ -31,48 +31,56 @@ curl -s http://localhost/metrics | grep -E "ghostlink_rollbacks_total|ghostlink_
 
 ## 📡 API Quick Reference
 
+Template style is consistent with `docs/API_REFERENCE.md`:
+
+- Request Example
+- Success Response
+- Error Responses
+
 ```bash
 # Create short URL
-curl -X POST http://localhost:5000/shorten \
+curl -X POST http://localhost/shorten \
   -H "Content-Type: application/json" \
   -d '{"original_url":"https://example.com"}'
 # → {"id":1, "short_code":"abc123"}
 
 # Redirect
-curl -I http://localhost:5000/abc123
+curl -I http://localhost/abc123
 # → 302 Location: https://example.com
 
 # List URLs
-curl http://localhost:5000/urls
+curl http://localhost/urls
 
 # Update URL
-curl -X PATCH http://localhost:5000/urls/1 \
+curl -X PATCH http://localhost/urls/1 \
   -H "Content-Type: application/json" \
   -d '{"title":"New Title"}'
 
 # Delete URL (soft delete)
-curl -X DELETE http://localhost:5000/urls/1
+curl -X DELETE http://localhost/urls/1
 
 # Health Check
-curl http://localhost:5000/health
-# → {"status":"ok","db":"ok","redis":"ok"}
+curl http://localhost/health
+# → {"status":"ok","version":"v1",...,"db":"ok","redis":"ok"}
 
 # Metrics
-curl http://localhost:5000/metrics
+curl http://localhost/metrics
 ```
 
 ## 🎯 Status Codes
 
 | Code | Meaning | When |
 |------|---------|------|
-| 200 | OK | Successful GET/PATCH/DELETE |
+| 200 | OK | Successful read/update/delete and health/metrics routes |
 | 201 | Created | URL shortened successfully |
 | 302 | Redirect | Short code found, redirecting |
-| 400 | Bad Request | Missing body or required fields |
+| 400 | Bad Request | Missing body, malformed JSON, or invalid request fields |
+| 403 | Forbidden | Ownership mismatch on protected update/delete operations |
 | 404 | Not Found | Short code doesn't exist |
 | 409 | Conflict | Short code already taken |
-| 410 | Gone | Link is inactive (soft deleted) |
+| 410 | Gone | Link is inactive or quarantined |
 | 422 | Unprocessable | Invalid URL format |
+| 500 | Server Error | Short code generation failure |
 | 503 | Degraded | Database connection error |
 
 ## 🛡️ Risk Scoring

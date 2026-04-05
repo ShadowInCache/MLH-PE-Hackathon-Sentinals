@@ -1,12 +1,12 @@
 apiVersion: 1
 
 providers:
-  - name: GhostLink Dashboards
+  - name: "GhostLink Dashboards"
     orgId: 1
-    folder: GhostLink
+    folder: "GhostLink"
     type: file
     disableDeletion: false
     editable: true
-    updateIntervalSeconds: 15
+    updateIntervalSeconds: 10
     options:
       path: /var/lib/grafana/dashboards

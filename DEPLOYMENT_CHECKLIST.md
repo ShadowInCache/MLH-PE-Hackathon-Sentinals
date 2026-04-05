@@ -15,7 +15,7 @@
 - [x] Link Health: APScheduler worker, 5min interval, HEAD checks
 
 ### Phase 4: API Routes ✅
-- [x] URLs: POST /shorten, GET /<code>, PATCH/DELETE /urls/<id>, GET /urls
+- [x] URLs: POST /shorten, GET /{short_code}, PATCH/DELETE /urls/{id}, GET /urls
 - [x] Health: GET /health (DB+Redis status), GET /metrics (Prometheus)
 
 ### Phase 5: Testing ✅
@@ -72,9 +72,9 @@
 
 ### ✅ API Contracts (Akshay's Dependencies)
 - [x] POST /shorten → 201 {"id":1, "short_code":"aB3xYz"}
-- [x] GET /<code> → 302 redirect (or 404/410)
-- [x] PATCH /urls/<id> → 200 {"message":"updated"}
-- [x] DELETE /urls/<id> → 200 {"message":"deleted"}
+- [x] GET /{short_code} → 302 redirect (or 404/410)
+- [x] PATCH /urls/{id} → 200 {"message":"updated"}
+- [x] DELETE /urls/{id} → 200 {"message":"deleted"}
 - [x] GET /urls → 200 [array]
 - [x] GET /health → 200/503 with component status
 - [x] GET /metrics → Prometheus text format
@@ -115,12 +115,15 @@ curl -X POST http://localhost:5000/shorten \
   -H "Content-Type: application/json" \
   -d '{"original_url":"https://example.com"}'
 
+# Set SHORT_CODE from step 7 response (example: abc123)
+SHORT_CODE="abc123"
+
 # 8. Test redirect (use short_code from step 7)
-curl -I http://localhost:5000/<short_code>
+curl -I "http://localhost:5000/${SHORT_CODE}"
 
 # 9. Test 410 edge case (delete URL first)
 curl -X DELETE http://localhost:5000/urls/1
-curl http://localhost:5000/<short_code>  # Should return 410
+curl "http://localhost:5000/${SHORT_CODE}"  # Should return 410
 
 # 10. Test 409 edge case (duplicate short_code)
 curl -X POST http://localhost:5000/shorten \
