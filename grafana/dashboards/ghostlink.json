@@ -4,32 +4,339 @@
   "title": "GhostLink Command Center",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
-  "refresh": "10s",
+  "version": 2,
+  "refresh": "5s",
   "time": {
     "from": "now-1h",
     "to": "now"
   },
+  "liveNow": true,
   "panels": [
+    {
+      "id": 13,
+      "title": "Deck Header",
+      "type": "text",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "content": "# GhostLink Pulse Deck\n### Realtime security telemetry, release posture, and edge resilience\n**Fast read mode:** KPI cards on top, live anomaly lanes in the middle, operational context at the bottom.",
+        "mode": "markdown"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Canary success ratio (5m)",
+      "description": "Immediate confidence signal for canary health.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ghostlink-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.95
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "clamp_max(sum(increase(ghostlink_canary_success_total{job=\"ghostlink-security\"}[5m])) / clamp_min(sum(increase(ghostlink_canary_success_total{job=\"ghostlink-security\"}[5m])) + sum(increase(ghostlink_canary_failures_total{job=\"ghostlink-security\"}[5m])), 1), 1)",
+          "legendFormat": "success ratio (5m)"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 11,
+      "title": "Quarantine rate",
+      "description": "High values indicate aggressive URL quarantine pressure.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ghostlink-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.12
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(ghostlink_quarantined_urls_total{job=\"ghostlink-security\"}) / clamp_min(max(urls_active_total), 1)",
+          "legendFormat": "quarantine ratio"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Suspicious clients",
+      "description": "Unique suspicious client entities tracked by security exporter.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ghostlink-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ghostlink_suspicious_clients_total{job=\"ghostlink-security\"}",
+          "legendFormat": "suspicious clients"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 14,
+      "title": "Blocked requests (5m)",
+      "description": "Absolute blocked-request count in the most recent 5-minute window.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ghostlink-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ghostlink_blocked_requests_total{job=\"ghostlink-security\"}[5m])) or vector(0)",
+          "legendFormat": "blocked 5m"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      }
+    },
     {
       "id": 1,
       "title": "Canary checks per second",
+      "description": "Live canary throughput trend with area intensity.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 0,
-        "y": 0
+        "y": 9
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 24,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "canary checks/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4CC9F0"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
@@ -53,65 +360,166 @@
     {
       "id": 2,
       "title": "Canary latency (avg/max)",
+      "description": "Average versus max canary latency to spot tail-risk spikes.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 8,
-        "y": 0
+        "y": 9
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 14,
+            "gradientMode": "hue",
+            "spanNulls": true,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg latency"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#7BD389"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max latency"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF7B72"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(ghostlink_canary_latency_seconds{job=\"ghostlink-security\"})",
+          "expr": "avg(ghostlink_canary_latency_seconds{job=\"ghostlink-security\"}) or vector(0)",
           "legendFormat": "avg latency"
         },
         {
           "refId": "B",
-          "expr": "max(ghostlink_canary_latency_seconds{job=\"ghostlink-security\"})",
+          "expr": "max(ghostlink_canary_latency_seconds{job=\"ghostlink-security\"}) or vector(0)",
           "legendFormat": "max latency"
         }
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
     {
       "id": 3,
-      "title": "Error rate",
+      "title": "Error stream",
+      "description": "Failure and block-rate lanes for rapid anomaly triage.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 16,
-        "y": 0
+        "y": 9
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "canary failures/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2C14E"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "blocked requests/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E24D42"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
@@ -139,23 +547,88 @@
     },
     {
       "id": 4,
-      "title": "Ghost traffic",
+      "title": "Ghost traffic vectors",
+      "description": "Three suspicious traffic signatures tracked over time.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 0,
-        "y": 8
+        "y": 18
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "inactive URL probes/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#4CC9F0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "invalid short-code hits/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B388FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "repeat UA hits/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2C14E"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
@@ -176,63 +649,197 @@
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
     {
       "id": 5,
-      "title": "Link health distribution",
+      "title": "Link risk distribution",
+      "description": "Current security distribution across SAFE, WATCHLIST, and THREAT inventories.",
+      "type": "bargauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ghostlink-prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 200
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SAFE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2DC08D"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WATCHLIST"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "THREAT"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E24D42"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ghostlink_safe_links_total{job=\"ghostlink-security\"}",
+          "instant": true,
+          "legendFormat": "SAFE"
+        },
+        {
+          "refId": "B",
+          "expr": "ghostlink_watchlist_links_total{job=\"ghostlink-security\"}",
+          "instant": true,
+          "legendFormat": "WATCHLIST"
+        },
+        {
+          "refId": "C",
+          "expr": "ghostlink_threat_links_total{job=\"ghostlink-security\"}",
+          "instant": true,
+          "legendFormat": "THREAT"
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "minVizHeight": 20,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Blocked requests per second",
+      "description": "Edge blocking pressure with bar-style burst visibility.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
-        "x": 8,
-        "y": 8
+        "x": 16,
+        "y": 18
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "reqps",
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "drawStyle": "bars",
             "lineInterpolation": "linear",
             "barAlignment": 0,
             "lineWidth": 1,
-            "fillOpacity": 60,
-            "gradientMode": "none",
-            "spanNulls": false,
+            "fillOpacity": 82,
+            "gradientMode": "hue",
+            "spanNulls": true,
             "showPoints": "never",
             "stacking": {
-              "mode": "normal",
+              "mode": "none",
               "group": "A"
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "blocked requests/s"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E24D42"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "ghostlink_safe_links_total{job=\"ghostlink-security\"}",
-          "legendFormat": "SAFE"
-        },
-        {
-          "refId": "B",
-          "expr": "ghostlink_watchlist_links_total{job=\"ghostlink-security\"}",
-          "legendFormat": "WATCHLIST"
-        },
-        {
-          "refId": "C",
-          "expr": "ghostlink_threat_links_total{job=\"ghostlink-security\"}",
-          "legendFormat": "THREAT"
+          "expr": "sum(rate(ghostlink_blocked_requests_total{job=\"ghostlink-security\"}[1m])) or vector(0)",
+          "legendFormat": "blocked requests/s"
         }
       ],
       "options": {
@@ -248,108 +855,121 @@
       }
     },
     {
-      "id": 6,
-      "title": "Suspicious clients",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ghostlink-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 8
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "ghostlink_suspicious_clients_total{job=\"ghostlink-security\"}",
-          "legendFormat": "suspicious clients"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      }
-    },
-    {
       "id": 7,
       "title": "Feature flags status",
-      "type": "table",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ghostlink-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 16
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max by(flag) (ghostlink_feature_flag_enabled)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "feature flags"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "countRows": false,
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 8,
-      "title": "Release footprint by version",
+      "description": "Flag state over time (1 enabled, 0 disabled).",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
-        "x": 8,
-        "y": 16
+        "x": 0,
+        "y": 27
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 30,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "always",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by(version) (ghostlink_release_info)",
+          "expr": "max by(flag) (ghostlink_feature_flag_enabled) or on() vector(0)",
+          "legendFormat": "{{flag}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Release footprint",
+      "description": "Version distribution snapshot for deployed release labels.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ghostlink-prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "gradientMode": "hue",
+            "spanNulls": true,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(version) (ghostlink_release_info) or on() vector(0)",
           "legendFormat": "{{version}}"
         }
       ],
@@ -368,160 +988,67 @@
     {
       "id": 9,
       "title": "App instance health",
-      "type": "table",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ghostlink-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 16
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "up{job=\"ghostlink-backends\",instance=\"app1:5000\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "app1"
-        },
-        {
-          "refId": "B",
-          "expr": "up{job=\"ghostlink-backends\",instance=\"app2:5000\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "app2"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "footer": {
-          "show": false,
-          "reducer": [
-            "sum"
-          ],
-          "countRows": false,
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Canary success ratio",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ghostlink-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 24
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "decimals": 2
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "clamp_max(sum(increase(ghostlink_canary_success_total{job=\"ghostlink-security\"}[5m])) / clamp_min(sum(increase(ghostlink_canary_success_total{job=\"ghostlink-security\"}[5m])) + sum(increase(ghostlink_canary_failures_total{job=\"ghostlink-security\"}[5m])), 1), 1)",
-          "legendFormat": "success ratio (5m)"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      }
-    },
-    {
-      "id": 11,
-      "title": "Quarantine rate",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ghostlink-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 24
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "decimals": 3
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(ghostlink_quarantined_urls_total{job=\"ghostlink-security\"}) / clamp_min(max(urls_active_total), 1)",
-          "legendFormat": "quarantine ratio"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
-      }
-    },
-    {
-      "id": 12,
-      "title": "Blocked requests",
+      "description": "Backend availability stream per app instance (1 up, 0 down).",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "ghostlink-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 16,
-        "y": 24
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "barAlignment": 0,
+            "lineWidth": 3,
+            "fillOpacity": 14,
+            "gradientMode": "opacity",
+            "spanNulls": true,
+            "showPoints": "always",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(ghostlink_blocked_requests_total{job=\"ghostlink-security\"}[1m])) or vector(0)",
-          "legendFormat": "blocked requests/s"
+          "expr": "up{job=\"ghostlink-backends\",instance=\"app1:5000\"} or on() vector(0)",
+          "legendFormat": "app1"
+        },
+        {
+          "refId": "B",
+          "expr": "up{job=\"ghostlink-backends\",instance=\"app2:5000\"} or on() vector(0)",
+          "legendFormat": "app2"
         }
       ],
       "options": {
@@ -558,9 +1085,11 @@
   },
   "tags": [
     "ghostlink",
-    "command-center"
+    "command-center",
+    "observability",
+    "security"
   ],
   "editable": true,
-  "graphTooltip": 0,
+  "graphTooltip": 2,
   "links": []
 }
