@@ -10,6 +10,20 @@ GhostLink shortens URLs, tracks redirect events, scores link risk, and monitors 
 
 ---
 
+## Video
+
+[![GhostLink Demo](https://www.youtube.com/watch?v=03rN9cy9-sw)](https://www.youtube.com/watch?v=03rN9cy9-sw)
+
+---
+
+## Dashboard
+
+![GhostLink Main](Assets/main.jpg)
+
+![Grafana Dashboard](Assets/dashboard.jpeg)
+
+---
+
 ## What it does
 
 - Shorten URLs with auto-generated or custom short codes
