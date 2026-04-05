@@ -6,6 +6,7 @@ from peewee import IntegrityError
 
 from app.models.event import Event
 from app.models.url import Url
+from app.models.user import User
 from app.routes.health import (
     increment_ghost_probes,
     increment_url_redirects,
@@ -36,6 +37,54 @@ def get_client_ip():
     return request.remote_addr or "unknown"
 
 
+def parse_json_object(required=True):
+    data = request.get_json(silent=True)
+    if data is None:
+        if required:
+            return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
+        return {}, None
+    if not isinstance(data, dict):
+        return None, (jsonify({"error": "Invalid request body", "code": 400}), 400)
+    return data, None
+
+
+def coerce_optional_user_id(data):
+    user_id = data.get("user_id")
+    if user_id is None:
+        return None, None
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return None, (jsonify({"error": "Invalid user_id", "code": 400}), 400)
+
+    if user_id <= 0:
+        return None, (jsonify({"error": "Invalid user_id", "code": 400}), 400)
+
+    if not User.select().where(User.id == user_id).exists():
+        return None, (jsonify({"error": "User not found", "code": 404}), 404)
+
+    return user_id, None
+
+
+def coerce_optional_short_code(data):
+    custom_code = data.get("short_code")
+    if custom_code is None:
+        return None, None
+
+    if not isinstance(custom_code, str):
+        return None, (jsonify({"error": "Invalid short_code", "code": 422}), 422)
+
+    custom_code = custom_code.strip()
+    if not custom_code:
+        return None, None
+
+    if len(custom_code) > 10 or not custom_code.isalnum():
+        return None, (jsonify({"error": "Invalid short_code", "code": 422}), 422)
+
+    return custom_code, None
+
+
 def url_to_dict(url):
     return {
         "id": url.id,
@@ -49,20 +98,28 @@ def url_to_dict(url):
 
 @urls_bp.route("/shorten", methods=["POST"])
 def shorten_url():
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Missing request body", "code": 400}), 400
+    data, error_response = parse_json_object(required=True)
+    if error_response:
+        return error_response
 
     original_url = data.get("original_url")
-    if not original_url:
+    if original_url is None or original_url == "":
         return jsonify({"error": "Missing original_url", "code": 400}), 400
 
-    if not is_valid_url(original_url):
+    if not isinstance(original_url, str) or not is_valid_url(original_url):
         return jsonify({"error": "Invalid URL", "code": 422}), 422
 
-    custom_code = data.get("short_code")
-    user_id = data.get("user_id")
+    custom_code, error_response = coerce_optional_short_code(data)
+    if error_response:
+        return error_response
+
+    user_id, error_response = coerce_optional_user_id(data)
+    if error_response:
+        return error_response
+
     title = data.get("title")
+    if title is not None and not isinstance(title, str):
+        return jsonify({"error": "Invalid title", "code": 400}), 400
 
     if custom_code:
         if not shortener.is_code_available(custom_code):
@@ -93,20 +150,28 @@ def shorten_url():
 
 @urls_bp.route("/urls", methods=["POST"])
 def create_url():
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Missing request body", "code": 400}), 400
+    data, error_response = parse_json_object(required=True)
+    if error_response:
+        return error_response
 
     original_url = data.get("original_url")
-    if not original_url:
+    if original_url is None or original_url == "":
         return jsonify({"error": "Missing original_url", "code": 400}), 400
 
-    if not is_valid_url(original_url):
+    if not isinstance(original_url, str) or not is_valid_url(original_url):
         return jsonify({"error": "Invalid URL", "code": 422}), 422
 
-    user_id = data.get("user_id")
+    user_id, error_response = coerce_optional_user_id(data)
+    if error_response:
+        return error_response
+
     title = data.get("title")
-    custom_code = data.get("short_code")
+    if title is not None and not isinstance(title, str):
+        return jsonify({"error": "Invalid title", "code": 400}), 400
+
+    custom_code, error_response = coerce_optional_short_code(data)
+    if error_response:
+        return error_response
 
     if custom_code:
         if not shortener.is_code_available(custom_code):
@@ -189,32 +254,47 @@ def get_url(url_id):
 
 @urls_bp.route("/urls/<int:url_id>", methods=["PATCH", "PUT"])
 def update_url(url_id):
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Missing request body", "code": 400}), 400
+    data, error_response = parse_json_object(required=True)
+    if error_response:
+        return error_response
 
     url = Url.select().where(Url.id == url_id).first()
     if not url:
         return jsonify({"error": "Not found", "code": 404}), 404
 
+    event_user_id, error_response = coerce_optional_user_id(data)
+    if error_response:
+        return error_response
+
     if "original_url" in data:
-        if not is_valid_url(data["original_url"]):
+        original_url = data["original_url"]
+        if not isinstance(original_url, str) or not is_valid_url(original_url):
             return jsonify({"error": "Invalid URL", "code": 422}), 422
-        url.original_url = data["original_url"]
+        url.original_url = original_url
         cache.delete_cached_url(url.short_code)
 
     if "title" in data:
-        url.title = data["title"]
+        title = data.get("title")
+        if title is not None and not isinstance(title, str):
+            return jsonify({"error": "Invalid title", "code": 400}), 400
+        url.title = title
 
     if "is_active" in data:
-        url.is_active = data["is_active"]
+        is_active = data["is_active"]
+        if not isinstance(is_active, bool):
+            return jsonify({"error": "Invalid is_active", "code": 400}), 400
+        url.is_active = is_active
         if not url.is_active:
             cache.delete_cached_url(url.short_code)
 
     url.updated_at = utc_now_naive()
     url.save()
 
-    Event.create(url_id=url.id, user_id=data.get("user_id"), event_type="updated")
+    Event.create(
+        url_id=url.id,
+        user_id=event_user_id if event_user_id is not None else url.user_id,
+        event_type="updated",
+    )
     compute_risk_score(url.id)
 
     result = url_to_dict(url)
@@ -234,8 +314,19 @@ def delete_url(url_id):
 
     cache.delete_cached_url(url.short_code)
 
-    body = request.get_json(silent=True) or {}
-    Event.create(url_id=url.id, user_id=body.get("user_id"), event_type="deleted")
+    body, error_response = parse_json_object(required=False)
+    if error_response:
+        return error_response
+
+    event_user_id, error_response = coerce_optional_user_id(body)
+    if error_response:
+        return error_response
+
+    Event.create(
+        url_id=url.id,
+        user_id=event_user_id if event_user_id is not None else url.user_id,
+        event_type="deleted",
+    )
     increment_urls_deleted()
     compute_risk_score(url.id)
 
