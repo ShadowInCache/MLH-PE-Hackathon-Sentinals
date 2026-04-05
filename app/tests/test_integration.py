@@ -4,7 +4,7 @@ import tempfile
 
 import pytest
 
-from app.models import Event, Url
+from app.models import Event, Url, User
 from app.services import cache, security
 
 
@@ -409,3 +409,49 @@ class TestHiddenHintCoverage:
             (Event.url_id == sample_url.id) & (Event.event_type == "redirect")
         ).count()
         assert final_count == initial_count
+
+    def test_update_url_rejects_mismatched_user_id(self, client, sample_url):
+        """A provided user_id must match URL owner for updates."""
+        intruder = User.create(username="intruder", email="intruder@example.com")
+
+        response = client.put(
+            f"/urls/{sample_url.id}",
+            json={"title": "Malicious Update", "user_id": intruder.id},
+        )
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert data["error"] == "Forbidden"
+        assert data["code"] == 403
+
+    def test_delete_url_rejects_mismatched_user_id(self, client, sample_url):
+        """A provided user_id must match URL owner for deletions."""
+        intruder = User.create(username="intruder2", email="intruder2@example.com")
+
+        response = client.delete(
+            f"/urls/{sample_url.id}",
+            json={"user_id": intruder.id},
+        )
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert data["error"] == "Forbidden"
+        assert data["code"] == 403
+
+    def test_create_event_rejects_mismatched_user_id(self, client, sample_url):
+        """Event creation should reject user_id that does not own the URL."""
+        intruder = User.create(username="intruder3", email="intruder3@example.com")
+
+        response = client.post(
+            "/events",
+            json={
+                "url_id": sample_url.id,
+                "user_id": intruder.id,
+                "event_type": "click",
+            },
+        )
+
+        assert response.status_code == 403
+        data = response.get_json()
+        assert data["error"] == "Forbidden"
+        assert data["code"] == 403
