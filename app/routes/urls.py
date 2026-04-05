@@ -57,7 +57,7 @@ def shorten_url():
     if not original_url:
         return jsonify({"error": "Missing original_url", "code": 400}), 400
 
-    if not is_valid_url(original_url):
+    if not isinstance(original_url, str) or not is_valid_url(original_url):
         return jsonify({"error": "Invalid URL", "code": 422}), 422
 
     custom_code = data.get("short_code")
@@ -101,7 +101,7 @@ def create_url():
     if not original_url:
         return jsonify({"error": "Missing original_url", "code": 400}), 400
 
-    if not is_valid_url(original_url):
+    if not isinstance(original_url, str) or not is_valid_url(original_url):
         return jsonify({"error": "Invalid URL", "code": 422}), 422
 
     user_id = data.get("user_id")

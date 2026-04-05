@@ -1,8 +1,11 @@
 import csv
+import re
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 from peewee import IntegrityError, PostgresqlDatabase
+
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 from app.database import db
 from app.models.user import User
@@ -139,6 +142,9 @@ def create_user():
     if not username or not email:
         return jsonify({"error": "Missing username or email", "code": 400}), 400
 
+    if not EMAIL_RE.match(email):
+        return jsonify({"error": "Invalid email", "code": 422}), 422
+
     payload = {
         "username": username,
         "email": email,
@@ -150,7 +156,7 @@ def create_user():
     if user is None:
         user = User.select().where(User.username == username).first()
     if user is not None:
-        return jsonify(user_to_dict(user)), 201
+        return jsonify({"error": "User already exists", "code": 409}), 409
 
     user = User.create(**payload)
     return jsonify(user_to_dict(user)), 201
