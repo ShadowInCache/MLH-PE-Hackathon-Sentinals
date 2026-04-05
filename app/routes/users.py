@@ -1,8 +1,11 @@
 import csv
+import re
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 from peewee import IntegrityError, PostgresqlDatabase
+
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 from app.database import db
 from app.models.user import User
@@ -130,14 +133,23 @@ def get_user(user_id):
 @users_bp.route("/users", methods=["POST"])
 def create_user():
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
-    username = (data.get("username") or "").strip()
-    email = (data.get("email") or "").strip()
+    username = data.get("username")
+    email = data.get("email")
+
+    if not isinstance(username, str) or not isinstance(email, str):
+        return jsonify({"error": "Missing username or email", "code": 400}), 400
+
+    username = username.strip()
+    email = email.strip()
 
     if not username or not email:
         return jsonify({"error": "Missing username or email", "code": 400}), 400
+
+    if not EMAIL_RE.match(email):
+        return jsonify({"error": "Invalid email", "code": 422}), 422
 
     payload = {
         "username": username,
@@ -150,7 +162,7 @@ def create_user():
     if user is None:
         user = User.select().where(User.username == username).first()
     if user is not None:
-        return jsonify(user_to_dict(user)), 201
+        return jsonify({"error": "User already exists", "code": 409}), 409
 
     user = User.create(**payload)
     return jsonify(user_to_dict(user)), 201
@@ -159,7 +171,7 @@ def create_user():
 @users_bp.route("/users/<int:user_id>", methods=["PUT", "PATCH"])
 def update_user(user_id):
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
     user = User.select().where(User.id == user_id).first()
@@ -167,16 +179,16 @@ def update_user(user_id):
         return jsonify({"error": "Not found", "code": 404}), 404
 
     if "username" in data:
-        username = (data.get("username") or "").strip()
-        if not username:
+        username = data.get("username")
+        if not isinstance(username, str) or not username.strip():
             return jsonify({"error": "Invalid username", "code": 400}), 400
-        user.username = username
+        user.username = username.strip()
 
     if "email" in data:
-        email = (data.get("email") or "").strip()
-        if not email:
+        email = data.get("email")
+        if not isinstance(email, str) or not email.strip():
             return jsonify({"error": "Invalid email", "code": 400}), 400
-        user.email = email
+        user.email = email.strip()
 
     try:
         user.save()

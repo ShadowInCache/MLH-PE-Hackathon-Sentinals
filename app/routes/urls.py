@@ -8,7 +8,6 @@ from app.models.event import Event
 from app.models.url import Url
 from app.models.user import User
 from app.routes.health import (
-    increment_ghost_probes,
     increment_url_redirects,
     increment_urls_created,
     increment_urls_deleted,
@@ -69,6 +68,9 @@ def coerce_optional_user_id(data):
 
 def coerce_optional_short_code(data):
     custom_code = data.get("short_code")
+    if custom_code is None:
+        custom_code = data.get("shortcode")
+
     if custom_code is None:
         return None, None
 
@@ -208,10 +210,21 @@ def redirect_url(short_code):
 
     if is_quarantined_code(short_code):
         record_request_fingerprint(
-            short_code=short_code, status_code=410,
-            client_ip=client_ip, user_agent=user_agent, is_quarantined=True,
+            short_code=short_code,
+            status_code=410,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            is_quarantined=True,
         )
-        return jsonify({"error": "This short code has been quarantined due to suspicious activity", "code": 410}), 410
+        return (
+            jsonify(
+                {
+                    "error": "This short code has been quarantined due to suspicious activity",
+                    "code": 410,
+                }
+            ),
+            410,
+        )
 
     cached = cache.get_cached_url(short_code)
     if cached:
@@ -220,27 +233,40 @@ def redirect_url(short_code):
             Event.create(url_id=url.id, user_id=url.user_id, event_type="redirect")
             increment_url_redirects(short_code)
             record_redirect_latency(max(time.perf_counter() - start_time, 0.0))
-            record_request_fingerprint(short_code=short_code, status_code=302, client_ip=client_ip, user_agent=user_agent)
+            record_request_fingerprint(
+                short_code=short_code,
+                status_code=302,
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
             return redirect(cached, code=302)
         cache.delete_cached_url(short_code)
 
     url = Url.select().where(Url.short_code == short_code).first()
 
     if not url:
-        record_request_fingerprint(short_code=short_code, status_code=404, client_ip=client_ip, user_agent=user_agent, is_invalid_short_code=True)
+        record_request_fingerprint(
+            short_code=short_code,
+            status_code=404,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            is_invalid_short_code=True,
+        )
         return jsonify({"error": "Not found", "code": 404}), 404
 
     if not url.is_active:
-        increment_ghost_probes()
-        record_request_fingerprint(short_code=short_code, status_code=410, client_ip=client_ip, user_agent=user_agent, is_ghost_probe=True)
-        compute_risk_score(url.id)
         return jsonify({"error": "Link inactive", "code": 410}), 410
 
     cache.cache_url(short_code, url.original_url)
     Event.create(url_id=url.id, user_id=url.user_id, event_type="redirect")
     increment_url_redirects(short_code)
     record_redirect_latency(max(time.perf_counter() - start_time, 0.0))
-    record_request_fingerprint(short_code=short_code, status_code=302, client_ip=client_ip, user_agent=user_agent)
+    record_request_fingerprint(
+        short_code=short_code,
+        status_code=302,
+        client_ip=client_ip,
+        user_agent=user_agent,
+    )
     return redirect(url.original_url, code=302)
 
 
@@ -364,3 +390,9 @@ def list_urls():
 
     urls = [url_to_dict(u) for u in query]
     return jsonify(urls), 200
+
+
+@urls_bp.route("/r/<short_code>", methods=["GET"])
+def redirect_url_r(short_code):
+    """Alias redirect route at /r/<short_code>."""
+    return redirect_url(short_code)
