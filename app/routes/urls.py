@@ -61,7 +61,7 @@ def coerce_optional_user_id(data):
         return None, (jsonify({"error": "Invalid user_id", "code": 400}), 400)
 
     if not User.select().where(User.id == user_id).exists():
-        return None, (jsonify({"error": "User not found", "code": 404}), 404)
+        return None, (jsonify({"error": "Invalid user_id", "code": 400}), 400)
 
     return user_id, None
 
@@ -162,6 +162,9 @@ def create_url():
 
     if not isinstance(original_url, str) or not is_valid_url(original_url):
         return jsonify({"error": "Invalid URL", "code": 422}), 422
+
+    if data.get("user_id") is None:
+        return jsonify({"error": "Missing user_id", "code": 400}), 400
 
     user_id, error_response = coerce_optional_user_id(data)
     if error_response:

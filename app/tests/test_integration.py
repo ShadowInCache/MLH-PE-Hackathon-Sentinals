@@ -353,10 +353,24 @@ class TestHiddenHintCoverage:
             },
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "User not found"
-        assert data["code"] == 404
+        assert data["error"] == "Invalid user_id"
+        assert data["code"] == 400
+
+    def test_create_url_rejects_missing_user_id(self, client):
+        """Creating URL should reject missing user identity."""
+        response = client.post(
+            "/urls",
+            json={
+                "original_url": "https://example.com",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Missing user_id"
+        assert data["code"] == 400
 
     def test_redirect_records_event_on_each_visit(self, client, sample_url):
         """Every successful redirect should append a redirect event."""
