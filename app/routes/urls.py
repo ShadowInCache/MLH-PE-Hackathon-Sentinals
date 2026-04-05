@@ -293,6 +293,17 @@ def update_url(url_id):
     if error_response:
         return error_response
 
+    mutable_fields = {"original_url", "title", "is_active"}
+    allowed_fields = set(mutable_fields)
+    allowed_fields.add("user_id")
+
+    unknown_fields = [field for field in data.keys() if field not in allowed_fields]
+    if unknown_fields:
+        return jsonify({"error": "Invalid request body", "code": 400}), 400
+
+    if not any(field in data for field in mutable_fields):
+        return jsonify({"error": "Missing update fields", "code": 400}), 400
+
     url = Url.select().where(Url.id == url_id).first()
     if not url:
         return jsonify({"error": "Not found", "code": 404}), 404

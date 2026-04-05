@@ -455,3 +455,24 @@ class TestHiddenHintCoverage:
         data = response.get_json()
         assert data["error"] == "Forbidden"
         assert data["code"] == 403
+
+    def test_update_url_rejects_empty_payload(self, client, sample_url):
+        """Update should fail when no mutable fields are supplied."""
+        response = client.put(f"/urls/{sample_url.id}", json={})
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Missing update fields"
+        assert data["code"] == 400
+
+    def test_update_url_rejects_unknown_fields(self, client, sample_url):
+        """Update should reject unknown payload keys."""
+        response = client.put(
+            f"/urls/{sample_url.id}",
+            json={"mystery": "value"},
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid request body"
+        assert data["code"] == 400
