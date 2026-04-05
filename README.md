@@ -12,7 +12,7 @@ GhostLink shortens URLs, tracks redirect events, scores link risk, and monitors 
 
 ## Video
 
-[![GhostLink Demo](https://www.youtube.com/watch?v=03rN9cy9-sw)
+[![GhostLink Demo](https://www.youtube.com/watch?v=03rN9cy9-sw)](https://www.youtube.com/watch?v=03rN9cy9-sw)
 
 ---
 
