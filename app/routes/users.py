@@ -141,12 +141,13 @@ def create_user():
             email=email,
             defaults={"username": username, "created_at": payload["created_at"]},
         )
-        if not created:
-            # Update username to match submitted input
-            user.username = username
-            user.save()
     except IntegrityError:
-        return jsonify({"error": "User already exists", "code": 409}), 409
+        # Race or username conflict — fetch whichever record matches
+        user = User.select().where(
+            (User.email == email) | (User.username == username)
+        ).first()
+        if user is None:
+            return jsonify({"error": "User already exists", "code": 409}), 409
 
     return jsonify(user_to_dict(user)), 201
 
