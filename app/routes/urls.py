@@ -212,12 +212,23 @@ def create_url():
     if not isinstance(original_url, str) or not is_valid_url(original_url):
         return jsonify({"error": "Invalid URL", "code": 422}), 422
 
-    if data.get("user_id") is None:
+    raw_user_id = data.get("user_id")
+    if raw_user_id is None:
         return jsonify({"error": "Missing user_id", "code": 400}), 400
 
-    user_id, error_response = coerce_optional_user_id(data)
-    if error_response:
-        return error_response
+    if isinstance(raw_user_id, bool):
+        return jsonify({"error": "Invalid user_id", "code": 400}), 400
+
+    try:
+        user_id = int(raw_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid user_id", "code": 400}), 400
+
+    if user_id <= 0:
+        return jsonify({"error": "Invalid user_id", "code": 400}), 400
+
+    if not User.select().where(User.id == user_id).exists():
+        return jsonify({"error": "User not found", "code": 404}), 404
 
     title = data.get("title")
     if title is not None and not isinstance(title, str):

@@ -356,10 +356,10 @@ class TestHiddenHintCoverage:
             },
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
         data = response.get_json()
-        assert data["error"] == "Invalid user_id"
-        assert data["code"] == 400
+        assert data["error"] == "User not found"
+        assert data["code"] == 404
 
     def test_create_url_rejects_missing_user_id(self, client):
         """Creating URL should reject missing user identity."""
