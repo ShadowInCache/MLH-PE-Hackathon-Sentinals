@@ -301,6 +301,13 @@ def update_url(url_id):
     if error_response:
         return error_response
 
+    if (
+        event_user_id is not None
+        and url.user_id is not None
+        and event_user_id != url.user_id
+    ):
+        return jsonify({"error": "Forbidden", "code": 403}), 403
+
     if "original_url" in data:
         original_url = data["original_url"]
         if not isinstance(original_url, str) or not is_valid_url(original_url):
@@ -356,6 +363,13 @@ def delete_url(url_id):
     event_user_id, error_response = coerce_optional_user_id(body)
     if error_response:
         return error_response
+
+    if (
+        event_user_id is not None
+        and url.user_id is not None
+        and event_user_id != url.user_id
+    ):
+        return jsonify({"error": "Forbidden", "code": 403}), 403
 
     Event.create(
         url_id=url.id,

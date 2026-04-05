@@ -98,6 +98,10 @@ def create_event():
         if not User.select().where(User.id == user_id).exists():
             return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
+        url_owner_id = Url.select(Url.user_id).where(Url.id == url_id).scalar()
+        if url_owner_id is not None and user_id != url_owner_id:
+            return jsonify({"error": "Forbidden", "code": 403}), 403
+
     # Accept referrer at top level or nested inside details dict.
     details = data.get("details")
     if details is not None and not isinstance(details, dict):
