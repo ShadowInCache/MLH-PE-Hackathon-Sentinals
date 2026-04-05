@@ -31,7 +31,9 @@ git clone https://github.com/stealthwhizz/MLH-PE-Hackathon-Sentinals.git && cd M
 - k6/load_test.js
 - scripts/quarantine_code.sh
 - scripts/unquarantine_code.sh
+- scripts/rollback.sh
 - scripts/canary_check.sh
+- scripts/security_drift_check.py
 - scripts/security_metrics_exporter.py
 - Makefile
 - docs/README.md
@@ -40,6 +42,7 @@ git clone https://github.com/stealthwhizz/MLH-PE-Hackathon-Sentinals.git && cd M
 - docs/CAPACITY.md
 - docs/BOTTLENECK_REPORT.md
 - docs/FAILURE_EDGE_CASES.md
+- docs/SECURITY_DRIFT_REPORT.md
 
 ## Service and Container Names
 
@@ -155,6 +158,20 @@ make chaos-reset
 make quarantine-demo
 ```
 
+## Release Rollback Commands
+
+Use dry-run preview before live rollback:
+
+```bash
+make rollback-plan-app2
+make rollback-plan-app1
+make rollback-plan-all
+
+make rollback-app2
+make rollback-app1
+make rollback-all
+```
+
 ## Environment Variables
 
 Set before startup:
@@ -167,6 +184,11 @@ Compose-managed env highlights:
   - DATABASE_URL=postgresql://ghostlink:ghostlink@postgres:5432/ghostlink
   - REDIS_URL=redis://redis:6379/0
   - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+  - APP_VERSION / PREVIOUS_APP_VERSION
+  - GIT_SHA / DEPLOYED_AT / RELEASE_OWNER / RELEASE_NOTES_URL
+  - ROLLBACK_STATE_FILE=/var/lib/ghostlink-security/rollback_state.env
+  - ENABLE_QUARANTINE_MODE / ENABLE_RISK_SCORING / ENABLE_GHOST_PROBE_ALERTS
+  - ENABLE_CANARY_MONITORING / ENABLE_AUTO_BLOCKING / ENABLE_THREAT_HEATMAP
 - postgres:
   - POSTGRES_DB=ghostlink
   - POSTGRES_USER=ghostlink
@@ -185,6 +207,9 @@ docker compose config
 docker compose exec -T nginx nginx -t
 docker compose exec -T prometheus promtool check config /etc/prometheus/prometheus.yml
 docker compose exec -T prometheus promtool check rules /etc/prometheus/alert_rules.yml
+python scripts/security_drift_check.py
+make rollback-plan-app2
+curl -i http://localhost/health
 ```
 
 ## Run the k6 Load Test

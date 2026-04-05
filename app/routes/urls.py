@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, redirect, request
 from peewee import IntegrityError, PostgresqlDatabase
 
 from app.database import db
+from app.config.feature_flags import ENABLE_QUARANTINE_MODE, ENABLE_RISK_SCORING
 from app.models.event import Event
 from app.models.url import Url
 from app.models.user import User
@@ -190,7 +191,8 @@ def shorten_url():
         )
         Event.create(url_id=url.id, user_id=user_id, event_type="created")
         cache.cache_url(short_code, original_url)
-        compute_risk_score(url.id)
+        if ENABLE_RISK_SCORING:
+            compute_risk_score(url.id)
         increment_urls_created()
         return jsonify({"id": url.id, "short_code": short_code}), 201
     except IntegrityError:
@@ -245,7 +247,8 @@ def create_url():
         )
         Event.create(url_id=url.id, user_id=user_id, event_type="created")
         cache.cache_url(short_code, original_url)
-        compute_risk_score(url.id)
+        if ENABLE_RISK_SCORING:
+            compute_risk_score(url.id)
         increment_urls_created()
         return jsonify(url_to_dict(url)), 201
     except IntegrityError:
@@ -258,7 +261,7 @@ def redirect_url(short_code):
     client_ip = get_client_ip()
     user_agent = request.headers.get("User-Agent", "unknown")
 
-    if is_quarantined_code(short_code):
+    if ENABLE_QUARANTINE_MODE and is_quarantined_code(short_code):
         record_request_fingerprint(
             short_code=short_code,
             status_code=410,
@@ -395,7 +398,8 @@ def update_url(url_id):
         user_id=event_user_id if event_user_id is not None else url.user_id,
         event_type="updated",
     )
-    compute_risk_score(url.id)
+    if ENABLE_RISK_SCORING:
+        compute_risk_score(url.id)
 
     result = url_to_dict(url)
     result["message"] = "updated"
@@ -435,7 +439,8 @@ def delete_url(url_id):
         event_type="deleted",
     )
     increment_urls_deleted()
-    compute_risk_score(url.id)
+    if ENABLE_RISK_SCORING:
+        compute_risk_score(url.id)
 
     return jsonify({"message": "deleted"}), 200
 

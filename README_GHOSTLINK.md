@@ -36,12 +36,16 @@ Background worker (APScheduler) runs every 5 minutes:
 #### 3. Prometheus Metrics
 Exposes at `GET /metrics` for Prometheus scraping:
 - `urls_created_total`: Counter of URL creations
-- `url_redirects_total`: Counter per short_code
+- `url_redirects_total`: Counter per short_code and app_version
 - `redirect_latency_seconds`: Histogram of redirect times
 - `ghost_probes_total`: Counter of inactive URL hits
 - `destination_dead_total`: Dead destination detections
 - `risk_score_threats_total`: URLs with score > 70
 - `urls_active_total`, `urls_inactive_total`: Current counts
+- `ghostlink_feature_flag_enabled`: Feature flag state (1/0)
+- `ghostlink_release_info`: Version, git SHA, deployment metadata
+- `ghostlink_rollbacks_total`: Rollback execution count
+- `ghostlink_recovery_attempts_total`, `ghostlink_recovery_success_total`: Recovery outcome counters
 
 ## API Endpoints
 
@@ -211,6 +215,21 @@ DATABASE_PORT=5432
 DATABASE_USER=postgres
 DATABASE_PASSWORD=postgres
 REDIS_URL=redis://localhost:6379/0  # optional
+
+APP_VERSION=v1-dev
+PREVIOUS_APP_VERSION=v1
+GIT_SHA=local
+DEPLOYED_AT=unknown
+RELEASE_OWNER=platform
+RELEASE_NOTES_URL=
+ROLLBACK_STATE_FILE=/var/lib/ghostlink-security/rollback_state.env
+
+ENABLE_QUARANTINE_MODE=true
+ENABLE_RISK_SCORING=true
+ENABLE_GHOST_PROBE_ALERTS=true
+ENABLE_CANARY_MONITORING=true
+ENABLE_AUTO_BLOCKING=false
+ENABLE_THREAT_HEATMAP=false
 ```
 
 ### Run Database Migrations
@@ -262,6 +281,28 @@ GhostLink is Docker-ready. Akshay's infrastructure setup includes:
 - k6 for load testing
 
 **Environment variables** are used for all configuration (12-factor app).
+
+## Rollback Automation
+
+Preview rollback impact before any restart:
+
+```bash
+make rollback-plan-app2
+make rollback-plan-app1
+```
+
+Execute rollback:
+
+```bash
+make rollback-app2
+```
+
+Validate release and recovery signals:
+
+```bash
+curl -i http://localhost/health
+curl -s http://localhost/metrics | grep -E "ghostlink_rollbacks_total|ghostlink_recovery_attempts_total|ghostlink_recovery_success_total"
+```
 
 ## Project Structure
 
