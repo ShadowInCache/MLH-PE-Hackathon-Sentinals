@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.models.event import Event
+from app.models.url import Url
 
 events_bp = Blueprint("events", __name__)
 
@@ -48,7 +49,7 @@ def list_events():
 @events_bp.route("/events", methods=["POST"])
 def create_event():
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
     event_type = (data.get("event_type") or "").strip()
@@ -63,6 +64,9 @@ def create_event():
         url_id = int(url_id)
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid url_id", "code": 400}), 400
+
+    if not Url.select().where(Url.id == url_id).exists():
+        return jsonify({"error": "URL not found", "code": 404}), 404
 
     user_id = data.get("user_id")
     if user_id is not None:

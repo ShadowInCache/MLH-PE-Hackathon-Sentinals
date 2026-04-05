@@ -130,7 +130,7 @@ def get_user(user_id):
 @users_bp.route("/users", methods=["POST"])
 def create_user():
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
     username = (data.get("username") or "").strip()
@@ -159,7 +159,7 @@ def create_user():
 @users_bp.route("/users/<int:user_id>", methods=["PUT", "PATCH"])
 def update_user(user_id):
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
     user = User.select().where(User.id == user_id).first()

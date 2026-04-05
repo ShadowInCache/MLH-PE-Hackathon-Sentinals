@@ -50,7 +50,7 @@ def url_to_dict(url):
 @urls_bp.route("/shorten", methods=["POST"])
 def shorten_url():
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
     original_url = data.get("original_url")
@@ -94,7 +94,7 @@ def shorten_url():
 @urls_bp.route("/urls", methods=["POST"])
 def create_url():
     data = request.get_json(silent=True)
-    if data is None:
+    if not isinstance(data, dict):
         return jsonify({"error": "Missing request body", "code": 400}), 400
 
     original_url = data.get("original_url")
