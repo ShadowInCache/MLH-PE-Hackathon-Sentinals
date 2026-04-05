@@ -562,10 +562,10 @@ class TestHiddenHintCoverage:
             },
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "details must be a JSON object"
-        assert data["code"] == 422
+        assert data["error"] == "details must be an object"
+        assert data["code"] == 400
 
     def test_delete_url_rejects_malformed_json_body(self, client, sample_url):
         """Optional DELETE body still must be valid JSON when provided."""
