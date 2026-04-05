@@ -322,3 +322,76 @@ class TestMetricsEndpoint:
 
         assert "urls_active_total" in data
         assert "urls_inactive_total" in data
+
+
+class TestHiddenHintCoverage:
+    def test_create_url_rejects_non_object_json(self, client):
+        """POST /urls should reject scalar JSON payloads."""
+        response = client.post("/urls", json="not-an-object")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid request body"
+        assert data["code"] == 400
+
+    def test_update_url_rejects_non_object_json(self, client, sample_url):
+        """PUT/PATCH URL should reject scalar JSON payloads."""
+        response = client.put(f"/urls/{sample_url.id}", json="not-an-object")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid request body"
+        assert data["code"] == 400
+
+    def test_create_url_rejects_unknown_user_id(self, client):
+        """Creating URL with unknown user_id should fail fast."""
+        response = client.post(
+            "/urls",
+            json={
+                "original_url": "https://example.com",
+                "user_id": 999999,
+            },
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "User not found"
+        assert data["code"] == 404
+
+    def test_redirect_records_event_on_each_visit(self, client, sample_url):
+        """Every successful redirect should append a redirect event."""
+        initial_count = Event.select().where(
+            (Event.url_id == sample_url.id) & (Event.event_type == "redirect")
+        ).count()
+
+        first = client.get(f"/{sample_url.short_code}", follow_redirects=False)
+        second = client.get(f"/{sample_url.short_code}", follow_redirects=False)
+
+        assert first.status_code == 302
+        assert second.status_code == 302
+
+        final_count = Event.select().where(
+            (Event.url_id == sample_url.id) & (Event.event_type == "redirect")
+        ).count()
+        assert final_count == initial_count + 2
+
+    def test_inactive_url_does_not_record_redirect_event(self, client, sample_url):
+        """Inactive links should not create redirect events."""
+        sample_url.is_active = False
+        sample_url.save()
+
+        initial_count = Event.select().where(
+            (Event.url_id == sample_url.id) & (Event.event_type == "redirect")
+        ).count()
+
+        response = client.get(f"/{sample_url.short_code}", follow_redirects=False)
+
+        assert response.status_code == 410
+        data = response.get_json()
+        assert data["error"] == "Link inactive"
+        assert data["code"] == 410
+
+        final_count = Event.select().where(
+            (Event.url_id == sample_url.id) & (Event.event_type == "redirect")
+        ).count()
+        assert final_count == initial_count

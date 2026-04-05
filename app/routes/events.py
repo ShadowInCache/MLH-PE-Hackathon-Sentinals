@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 
 from app.models.event import Event
 from app.models.url import Url
+from app.models.user import User
 
 events_bp = Blueprint("events", __name__)
 
@@ -12,6 +13,15 @@ def _coerce_positive_int(value, default):
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+def _parse_json_object():
+    data = request.get_json(silent=True)
+    if data is None:
+        return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
+    if not isinstance(data, dict):
+        return None, (jsonify({"error": "Invalid request body", "code": 400}), 400)
+    return data, None
 
 
 def event_to_dict(event):
@@ -48,14 +58,17 @@ def list_events():
 
 @events_bp.route("/events", methods=["POST"])
 def create_event():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Missing request body", "code": 400}), 400
+    data, error_response = _parse_json_object()
+    if error_response:
+        return error_response
 
-    event_type = data.get("event_type")
-    if not isinstance(event_type, str) or not event_type.strip():
+    raw_event_type = data.get("event_type")
+    if not isinstance(raw_event_type, str):
         return jsonify({"error": "Missing event_type", "code": 400}), 400
-    event_type = event_type.strip()
+
+    event_type = raw_event_type.strip()
+    if not event_type:
+        return jsonify({"error": "Missing event_type", "code": 400}), 400
 
     url_id = data.get("url_id")
     if url_id is None:
@@ -64,6 +77,9 @@ def create_event():
     try:
         url_id = int(url_id)
     except (TypeError, ValueError):
+        return jsonify({"error": "Invalid url_id", "code": 400}), 400
+
+    if url_id <= 0:
         return jsonify({"error": "Invalid url_id", "code": 400}), 400
 
     if not Url.select().where(Url.id == url_id).exists():
@@ -76,12 +92,19 @@ def create_event():
         except (TypeError, ValueError):
             return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
-    # Accept referrer at top level or nested inside details dict
+        if user_id <= 0:
+            return jsonify({"error": "Invalid user_id", "code": 400}), 400
+
+        if not User.select().where(User.id == user_id).exists():
+            return jsonify({"error": "User not found", "code": 404}), 404
+
+    # Accept referrer at top level or nested inside details dict.
     details = data.get("details")
     if details is not None and not isinstance(details, dict):
         return jsonify({"error": "Invalid details, must be an object", "code": 400}), 400
     if details is None:
         details = {}
+
     referrer = data.get("referrer") or details.get("referrer")
 
     event = Event.create(
