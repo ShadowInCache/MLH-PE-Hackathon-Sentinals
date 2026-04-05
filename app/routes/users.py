@@ -56,7 +56,14 @@ def list_users():
 
 @users_bp.route("/users/bulk", methods=["POST"])
 def load_users_bulk():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if data is None:
+        has_payload = bool((request.get_data(cache=True, as_text=False) or b"").strip())
+        if has_payload:
+            return jsonify({"error": "Missing request body", "code": 400}), 400
+        data = {}
+    elif not isinstance(data, dict):
+        return jsonify({"error": "Missing request body", "code": 400}), 400
 
     file_name = data.get("file") or "users.csv"
     row_count = _coerce_positive_int(data.get("row_count"), None)

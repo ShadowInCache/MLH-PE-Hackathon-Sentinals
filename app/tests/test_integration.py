@@ -328,6 +328,27 @@ class TestMetricsEndpoint:
 
 
 class TestHiddenHintCoverage:
+    def test_create_urls_in_sequence_use_distinct_short_codes(self, client, sample_user):
+        """Sequential URL creations should produce distinct short codes."""
+        first = client.post(
+            "/urls",
+            json={
+                "original_url": "https://example.com/twin-one",
+                "user_id": sample_user.id,
+            },
+        )
+        second = client.post(
+            "/urls",
+            json={
+                "original_url": "https://example.com/twin-two",
+                "user_id": sample_user.id,
+            },
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.get_json()["short_code"] != second.get_json()["short_code"]
+
     def test_create_url_rejects_non_object_json(self, client):
         """POST /urls should reject scalar JSON payloads."""
         response = client.post("/urls", json="not-an-object")
@@ -467,6 +488,22 @@ class TestHiddenHintCoverage:
         data = response.get_json()
         assert data["error"] == "Forbidden"
         assert data["code"] == 403
+
+    def test_create_event_rejects_unknown_user_id(self, client, sample_url):
+        """Event creation should reject user IDs that do not exist."""
+        response = client.post(
+            "/events",
+            json={
+                "url_id": sample_url.id,
+                "user_id": 999999,
+                "event_type": "click",
+            },
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "User not found"
+        assert data["code"] == 404
 
     def test_update_url_rejects_empty_payload(self, client, sample_url):
         """Update should fail when no mutable fields are supplied."""
@@ -608,3 +645,12 @@ class TestHiddenHintCoverage:
         payload = response.get_json()
         assert "id" in payload
         assert call_count["value"] == 2
+
+    def test_users_bulk_rejects_non_object_json(self, client):
+        """Bulk import endpoint should reject scalar JSON payloads."""
+        response = client.post("/users/bulk", json="not-an-object")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Missing request body"
+        assert data["code"] == 400

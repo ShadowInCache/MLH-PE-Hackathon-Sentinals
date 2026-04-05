@@ -105,7 +105,7 @@ def create_event():
             return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
         if not User.select().where(User.id == user_id).exists():
-            return jsonify({"error": "invalid user_id", "code": 404}), 404
+            return jsonify({"error": "User not found", "code": 404}), 404
 
         url_owner_id = Url.select(Url.user_id).where(Url.id == url_id).scalar()
         if url_owner_id is not None and user_id != url_owner_id:
