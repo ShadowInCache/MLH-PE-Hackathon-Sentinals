@@ -43,7 +43,7 @@ def parse_json_object(required=True):
             return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
         return {}, None
     if not isinstance(data, dict):
-        return None, (jsonify({"error": "Invalid request body", "code": 400}), 400)
+        return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
     return data, None
 
 

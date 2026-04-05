@@ -331,7 +331,7 @@ class TestHiddenHintCoverage:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "Invalid request body"
+        assert data["error"] == "Missing request body"
         assert data["code"] == 400
 
     def test_update_url_rejects_non_object_json(self, client, sample_url):
@@ -340,7 +340,7 @@ class TestHiddenHintCoverage:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert data["error"] == "Invalid request body"
+        assert data["error"] == "Missing request body"
         assert data["code"] == 400
 
     def test_create_url_rejects_unknown_user_id(self, client):

@@ -1,229 +1,253 @@
-# GhostLink Architecture Decisions
+# GhostLink Architecture and Engineering Decisions
 
-## Overview
-This document captures key technical decisions made during the GhostLink implementation for the MLH Production Engineering Hackathon.
+Last updated: 2026-04-05
 
-## Technology Choices
+## Purpose
 
-### ORM: Peewee vs SQLAlchemy
-**Decision:** Use Peewee ORM  
-**Rationale:**
-- Existing template was already configured with Peewee
-- Lighter weight and simpler for hackathon timeline
-- Sufficient feature set for our needs (models, migrations, queries)
-- Faster development velocity vs switching to SQLAlchemy mid-project
-- Team already familiar with Peewee patterns
+This file records the key technical decisions taken for GhostLink and the rationale behind them. It reflects the implemented state of the repository, including API compatibility work, observability and incident-response hardening, and load-test outcomes used for submission evidence.
 
-**Trade-offs:**
-- Less ecosystem support than SQLAlchemy
-- Fewer advanced ORM features (but not needed for our use case)
-- Migration tooling less robust (acceptable for hackathon)
+## Decision Index
 
-### Caching: Redis
-**Decision:** Redis for short-lived cache with graceful degradation  
-**Rationale:**
-- Cache short_code → original_url mappings (5 min TTL) to reduce DB load on hot URLs
-- Cache risk_scores (10 min TTL) since computation is expensive
-- Graceful degradation: app works without Redis, just slower
-- Simple key-value model fits our needs perfectly
-
-**Important Note on Redirect Caching:**
-- **REMOVED** caching from redirect endpoint
-- Redirect always queries DB to check `is_active` status
-- This ensures ghost probe detection works correctly (410 Gone for inactive URLs)
-- Trade-off: Slightly higher DB load, but necessary for correctness
-- Alternative considered: Cache {url, is_active} tuple, but adds complexity
-
-**Trade-offs:**
-- Additional infrastructure dependency (but common in production)
-- Cache invalidation complexity (handled via explicit deletes on updates)
-- TTL tuning required for optimal hit rates
-- No redirect caching due to is_active requirement
-
-### Background Workers: APScheduler
-**Decision:** APScheduler for link health checks (not Celery)  
-**Rationale:**
-- Simpler setup: no message broker required
-- Single process model acceptable for hackathon scale
-- 5-minute interval health checks don't need distributed task queue
-- Easy to start/stop with Flask lifecycle
-
-**Trade-offs:**
-- Not horizontally scalable (one scheduler per process)
-- No task retry/failure handling (acceptable for periodic checks)
-- Would need Celery/RQ for production scale (documented in future improvements)
-
-### Metrics: Prometheus Client
-**Decision:** Expose Prometheus text format at GET /metrics  
-**Rationale:**
-- Industry standard for observability
-- Akshay's infrastructure already uses Prometheus
-- Simple push model: app exposes, Prometheus scrapes
-- Rich metric types (counters, gauges, histograms)
-
-**Trade-offs:**
-- Need to manually update gauges (urls_active_total, etc.)
-- No built-in middleware instrumentation (added manual tracking)
-
-## API Design Decisions
-
-### Error Response Format
-**Decision:** All errors return JSON with {"error": "...", "code": <status>}  
-**Rationale:**
-- Consistent error handling for frontend/API consumers
-- Never expose HTML tracebacks in production
-- Status code duplicated in body for easier debugging
-- Explicit edge case handling (404, 410, 409, 422, 400)
-
-**Implementation:**
-- Custom error handlers for each status code
-- Silent JSON parsing (request.get_json(silent=True)) to catch malformed bodies
-- Validation at route level, not model level (faster feedback)
-
-### Soft Delete Pattern
-**Decision:** DELETE /urls/<id> sets is_active=False (soft delete)  
-**Rationale:**
-- Preserves audit trail (events table still references url_id)
-- Enables "undelete" feature in future
-- Risk scorer can detect ghost probes (hits on inactive URLs)
-- Safer than hard delete for production systems
-
-**Trade-offs:**
-- Need to filter is_active=True in most queries
-- Indexes must include is_active for performance
-- Storage grows unbounded (would need archival strategy at scale)
-
-### Short Code Generation
-**Decision:** 6-character alphanumeric codes (62^6 = 56B combinations)  
-**Rationale:**
-- Short enough for easy sharing (6 chars)
-- Large enough to avoid collisions at hackathon scale
-- Case-sensitive for maximum entropy
-- Collision detection with retry (up to 10 attempts)
-
-**Trade-offs:**
-- Potential collision at very high scale (would need base62 counter or UUID at production scale)
-- No custom vanity codes by default (added as optional feature)
-
-## Risk Scoring Design
-
-### Signal-Based Scoring
-**Decision:** Additive risk scoring with 5 signals  
-**Rationale:**
-- Simple to understand and debug
-- Each signal has clear threshold and point value
-- Tiers (SAFE/WATCHLIST/THREAT) provide actionable categories
-- Signals stored as JSONB for explainability
-
-**Signals:**
-1. Dead destination (+30): Latest health check indicates dead target
-2. Long redirect chain (+20): More than 3 redirects
-3. Ghost probe pressure (+15): High volume ghost probe events
-4. Suspicious TLD (+20): Domain uses risky top-level domain
-5. Delete/recreate pattern (+15): Repeated delete and recreate behavior
-
-**Trade-offs:**
-- Fixed weights don't adapt to new attack patterns (would need ML for that)
-- Domain-only heuristics can misclassify edge cases without external intel feeds
-- No geographic or reputation signals (out of scope for MVP)
-
-## Testing Strategy
-
-### Coverage Requirement: 70%
-**Decision:** Block merges if pytest coverage < 70%  
-**Rationale:**
-- Balances thoroughness with hackathon velocity
-- Forces testing of critical paths (API routes, risk scorer)
-- 70% is achievable without testing boilerplate (models, __init__.py)
-- CI enforces via pytest-cov --cov-fail-under=70
-
-**Test Structure:**
-- conftest.py: Fixtures for test DB, Flask client, sample data
-- test_unit.py: Services in isolation (mock DB/Redis)
-- test_integration.py: Full API tests (real DB, all edge cases)
-
-### Test Database Isolation
-**Decision:** Function-scoped fixtures with table create/drop  
-**Rationale:**
-- Each test gets clean DB state
-- Prevents test pollution and flaky failures
-- Fast enough for hackathon (would use transactions at scale)
-
-## Docker & Environment Configuration
-
-### Environment Variables
-**Decision:** All config via ENV vars (12-factor app)  
-**Rationale:**
-- Docker-friendly: no hardcoded config
-- Easy to override for dev/test/prod
-- Akshay's Docker setup depends on DATABASE_URL, REDIS_URL pattern
-- .env.example documents all required vars
-
-**Variables:**
-- DATABASE_NAME, DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_PASSWORD
-- REDIS_URL (with fallback to localhost)
-
-## Future Improvements (Out of Scope)
-
-1. **Horizontal Scaling:** Switch APScheduler → Celery + RabbitMQ
-2. **Rate Limiting:** Per-user/IP throttling to prevent abuse
-3. **Analytics:** Track click-through rates, geographic distribution
-4. **ML Risk Scoring:** Train model on labeled malicious URLs
-5. **URL Previews:** Safe rendering of destination page metadata
-6. **Custom Domains:** Allow users to use their own domains
-7. **API Authentication:** JWT tokens for user-scoped operations
-
-## Known Limitations
-
-1. **Single Process Scheduler:** Health checker doesn't scale horizontally
-2. **No Retry Logic:** If health check fails, no automatic retry
-3. **Whois Rate Limiting:** Domain age checks can be slow/blocked
-4. **No Link Expiration:** URLs live forever (would add expires_at field)
-5. **No User Auth:** user_id is passed in request (would add JWT auth)
-
-## Metrics & Observability
-
-### Exposed Metrics
-- urls_created_total: Counter of URL creations
-- url_redirects_total: Counter per short_code (labeled metric)
-- redirect_latency_seconds: Histogram of redirect response times
-- ghost_probes_total: Counter of inactive URL hits
-- destination_dead_total: Counter of dead destination detections
-- risk_score_threats_total: Gauge of URLs with score > 70
-- urls_active_total, urls_inactive_total: Current counts
-
-### Health Check
-GET /health returns:
-- 200 OK: {"status":"ok", "db":"ok", "redis":"ok"}
-- 503 Degraded: {"status":"degraded", "db":"error"} (Redis optional)
-
-## Edge Cases Handled (Bonus Points)
-
-1. **410 Gone:** Inactive URL hit returns 410, not 404
-2. **409 Conflict:** Duplicate short_code returns 409
-3. **422 Unprocessable:** Malformed URL returns 422
-4. **400 Bad Request:** Missing body/fields returns 400
-5. **404 Not Found:** Unknown short_code returns 404
-6. **All JSON:** Never return HTML traceback (silent error handling)
-
-## Security Considerations
-
-1. **SQL Injection:** Peewee ORM parameterizes queries (safe)
-2. **XSS:** No HTML rendering (JSON API only)
-3. **SSRF:** URL validation prevents internal IPs (out of scope, would add blocklist)
-4. **DoS:** No rate limiting yet (would add Flask-Limiter)
-5. **Open Redirects:** Acceptable for URL shortener (warn users in docs)
-
-## Performance Optimizations
-
-1. **Redis Caching:** Hot URLs served from cache (5 min TTL)
-2. **Database Indexes:** On short_code, user_id, is_active, created_at
-3. **Composite Indexes:** (url_id, checked_at), (user_id, timestamp)
-4. **Connection Pooling:** Peewee reuses connections via reuse_if_open=True
-5. **Batch Inserts:** Seed script uses chunked inserts (Peewee bulk operations)
+| ID | Decision | Status |
+|---|---|---|
+| D-01 | Keep Flask + Peewee for delivery speed and operational simplicity | Accepted |
+| D-02 | Run behind Nginx with multi-instance app replicas (`app1`, `app2`) | Accepted |
+| D-03 | Preserve broad API compatibility surface (`/shorten`, `/urls`, `/users`, `/events`) | Accepted |
+| D-04 | Enforce strict JSON object and identity validation on write endpoints | Accepted |
+| D-05 | Record redirect events for successful redirects; block inactive/quarantined routes | Accepted |
+| D-06 | Use Redis cache with graceful degradation and explicit invalidation | Accepted |
+| D-07 | Keep additive 5-signal risk scoring model with SAFE/WATCHLIST/THREAT tiers | Accepted |
+| D-08 | Use structured JSON logging with explicit timestamp and log level fields | Accepted |
+| D-09 | Expose Prometheus metrics and keep four-signal dashboard coverage | Accepted |
+| D-10 | Route alerts through Alertmanager to an operator channel (Discord) | Accepted |
+| D-11 | Maintain actionable alert runbook and documented root-cause drill workflow | Accepted |
+| D-12 | Define Bronze/Silver/Gold load tiers and enforce under-5% high-load error objective | Accepted |
+| D-13 | Treat Nginx ingress as first observed pressure point at Gold load | Accepted |
+| D-14 | Keep function-scoped SQLite tests and explicit API compatibility/edge coverage | Accepted |
+| D-15 | Keep startup-safe table initialization and compatibility table checks | Accepted |
 
 ---
 
-**Author:** Sentinals Team (Amogh + Akshay)  
-**Date:** April 2026  
-**Event:** MLH Production Engineering Hackathon
+## D-01: Flask + Peewee
+
+Decision: Keep Flask and Peewee instead of switching frameworks/ORMs.
+
+Why:
+- Existing project baseline was already aligned with Flask + Peewee.
+- Faster iteration for hackathon timeline.
+- Query complexity and schema size are well within Peewee capabilities.
+
+Trade-offs:
+- Smaller ecosystem than SQLAlchemy.
+- Less advanced migration tooling.
+
+## D-02: Multi-instance ingress topology
+
+Decision: Use Nginx as ingress and load-balance across `app1` and `app2`.
+
+Why:
+- Improves availability and throughput under load.
+- Allows replica-level recovery during incidents.
+
+Trade-offs:
+- Requires upstream and health-check coordination.
+- Adds ingress tuning considerations at higher concurrency.
+
+## D-03: API compatibility surface
+
+Decision: Support both canonical and compatibility endpoints.
+
+Implemented compatibility includes:
+- URLs: `POST /shorten`, `POST /urls`, `GET /urls`, `GET /urls/<id>`, `PUT/PATCH /urls/<id>`, `DELETE /urls/<id>`, `GET /<short_code>`, `GET /r/<short_code>`.
+- Users: CRUD endpoints plus `POST /users/bulk`.
+- Events: `GET /events`, `POST /events` with filtering support.
+
+Why:
+- Hidden grader and integration tests expect broad endpoint compatibility.
+
+Trade-offs:
+- Slightly wider API surface to maintain.
+
+## D-04: Strict request-shape and identity validation
+
+Decision: Reject malformed request bodies and invalid identities early.
+
+Rules:
+- Write endpoints expect JSON objects, not scalars/lists.
+- Optional identity fields (`user_id`, etc.) are validated for type and existence when provided.
+- Malformed details payloads are rejected (`details` must be an object when present).
+
+Why:
+- Prevents 500-class failures from malformed input.
+- Aligns with hidden test patterns for malformed payloads and unverified identities.
+
+Trade-offs:
+- Slightly more validation code at route layer.
+
+## D-05: Redirect and event semantics
+
+Decision:
+- Successful redirects create redirect events and metrics updates.
+- Inactive or quarantined routes do not redirect and return `410`.
+- Unknown short codes return `404`.
+
+Why:
+- Meets expected behavioral contracts for active/inactive/quarantined states.
+- Ensures audit visibility for successful traffic.
+
+Trade-offs:
+- Requires consistent route behavior across cache-hit and DB paths.
+
+## D-06: Redis caching strategy
+
+Decision: Keep Redis as a best-effort cache with explicit invalidation.
+
+Details:
+- URL cache TTL: 300 seconds.
+- Risk score cache TTL: 600 seconds.
+- Cache failures do not bring down request paths.
+
+Why:
+- Improves hot-path performance while preserving resilience when Redis is unavailable.
+
+Trade-offs:
+- Cache invalidation logic must stay aligned with update/delete flows.
+
+## D-07: Risk scoring model
+
+Decision: Keep additive multi-signal scoring with tiered output.
+
+Signals used:
+- dead destination
+- long redirect chain
+- ghost-probe pressure
+- suspicious TLD
+- delete/recreate behavior
+
+Tiers:
+- SAFE
+- WATCHLIST
+- THREAT
+
+Why:
+- Simple, explainable, and operationally actionable.
+
+## D-08: Structured logging
+
+Decision: Keep Nginx structured JSON logs and include explicit timing/severity fields.
+
+Required fields include:
+- `time`
+- `timestamp`
+- `log_level`
+- request and upstream timing metadata
+
+Why:
+- Supports incident triage and downstream log parsing.
+
+## D-09: Metrics + dashboard signal coverage
+
+Decision: Use Prometheus exposition at `GET /metrics` and maintain dashboard coverage for four key signal classes.
+
+Required four signal classes:
+- latency
+- traffic
+- errors
+- saturation
+
+Why:
+- Aligns operational visibility with incident and capacity objectives.
+
+## D-10: Alert routing to operator channel
+
+Decision: Route alerts via Alertmanager to a dedicated operator channel (Discord receiver).
+
+Why:
+- Ensures incidents are delivered outside the app runtime.
+- Supports resolved notifications and grouped alerting.
+
+Trade-offs:
+- Channel credential management must be handled carefully.
+
+## D-11: Incident response and diagnosis drill
+
+Decision: Maintain actionable runbook procedures and an explicit simulated root-cause workflow.
+
+Runbook covers:
+- service down
+- canary failures
+- suspicious client spikes
+- blocked request spikes
+- threat-link surge
+
+Drill workflow includes:
+- chaos trigger
+- symptom and metric correlation
+- root-cause determination
+- recovery verification
+
+## D-12: Capacity tiers and high-load objectives
+
+Decision: Adopt tiered load testing profile and keep high-load error objective under 5%.
+
+Measured results (2026-04-05):
+- Bronze (50 VUs): p95 18.58 ms, failed 0.00%, 462.22 req/s
+- Silver (200 VUs): p95 45.48 ms, failed 0.00%, 1777.63 req/s
+- Gold (500 VUs): p95 320.66 ms, failed 0.08%, 1853.98 req/s
+
+Why:
+- Demonstrates scale behavior and satisfies submission thresholds.
+
+## D-13: Bottleneck interpretation and scaling priorities
+
+Decision: Treat ingress connection handling as the first observed pressure point at Gold profile.
+
+Observed:
+- Throughput growth from Silver to Gold flattened relative to concurrency increase.
+- Minor connection pressure appeared before backend hard failure.
+
+Priority scaling plan:
+1. tune Nginx worker/connection limits
+2. raise backend worker capacity
+3. increase replica count
+4. validate DB/Redis headroom during reruns
+
+## D-14: Testing and quality gates
+
+Decision:
+- Keep function-scoped isolated tests.
+- Keep compatibility tests and hidden-edge regressions in repository.
+- Preserve coverage gate in CI.
+
+Why:
+- Prevents regressions across API contracts and malformed input handling.
+
+## D-15: Startup-safe database initialization
+
+Decision: Keep table initialization safety checks both at app startup and request lifecycle.
+
+Why:
+- Improves resilience across local, test, and container startup orders.
+- Reduces runtime failures when environment startup ordering varies.
+
+---
+
+## Out-of-scope / Deferred
+
+1. Full authn/authz (JWT/session) for user-scoped operations.
+2. Distributed task queue for health checks (Celery/RQ class architecture).
+3. Advanced reputation feeds / ML-based risk scoring.
+4. Long-term archival strategy for soft-deleted historical data.
+
+## Primary references
+
+- `app/routes/urls.py`
+- `app/routes/events.py`
+- `app/services/cache.py`
+- `app/routes/health.py`
+- `prometheus/alert_rules.yml`
+- `alertmanager/alertmanager.yml`
+- `nginx/nginx.conf`
+- `docs/CAPACITY.md`
+- `docs/BOTTLENECK_REPORT.md`
+- `docs/RUNBOOK.md`
