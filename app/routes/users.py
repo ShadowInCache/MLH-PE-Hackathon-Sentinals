@@ -3,7 +3,6 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 from peewee import IntegrityError
-from playhouse.shortcuts import model_to_dict
 
 from app.models.user import User
 from app.utils import utc_now_naive
@@ -26,12 +25,18 @@ def _resolve_users_csv(file_name):
         base_dir / file_name,
         base_dir / "data" / file_name,
     ]
-
     for path in candidates:
         if path.exists() and path.is_file():
             return path
-
     return None
+
+
+def user_to_dict(user):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+    }
 
 
 @users_bp.route("/users", methods=["GET"])
@@ -39,84 +44,10 @@ def list_users():
     page = _coerce_positive_int(request.args.get("page", 1), 1)
     per_page = _coerce_positive_int(request.args.get("per_page", 50), 50)
 
+    total = User.select().count()
     query = User.select().order_by(User.id)
-    users = [model_to_dict(user) for user in query.paginate(page, per_page)]
-    return jsonify(users), 200
-
-
-@users_bp.route("/users/<int:user_id>", methods=["GET"])
-def get_user(user_id):
-    user = User.select().where(User.id == user_id).first()
-    if not user:
-        return jsonify({"error": "Not found", "code": 404}), 404
-
-    return jsonify(model_to_dict(user)), 200
-
-
-@users_bp.route("/users", methods=["POST"])
-def create_user():
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Missing request body", "code": 400}), 400
-
-    username = (data.get("username") or "").strip()
-    email = (data.get("email") or "").strip()
-
-    if not username or not email:
-        return jsonify({"error": "Missing username or email", "code": 400}), 400
-
-    payload = {
-        "username": username,
-        "email": email,
-        "created_at": data.get("created_at") or utc_now_naive(),
-    }
-
-    try:
-        user = User.create(**payload)
-    except IntegrityError:
-        return jsonify({"error": "User already exists", "code": 409}), 409
-
-    return jsonify(model_to_dict(user)), 201
-
-
-@users_bp.route("/users/<int:user_id>", methods=["PUT", "PATCH"])
-def update_user(user_id):
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Missing request body", "code": 400}), 400
-
-    user = User.select().where(User.id == user_id).first()
-    if not user:
-        return jsonify({"error": "Not found", "code": 404}), 404
-
-    if "username" in data:
-        username = (data.get("username") or "").strip()
-        if not username:
-            return jsonify({"error": "Invalid username", "code": 400}), 400
-        user.username = username
-
-    if "email" in data:
-        email = (data.get("email") or "").strip()
-        if not email:
-            return jsonify({"error": "Invalid email", "code": 400}), 400
-        user.email = email
-
-    try:
-        user.save()
-    except IntegrityError:
-        return jsonify({"error": "User already exists", "code": 409}), 409
-
-    return jsonify(model_to_dict(user)), 200
-
-
-@users_bp.route("/users/<int:user_id>", methods=["DELETE"])
-def delete_user(user_id):
-    user = User.select().where(User.id == user_id).first()
-    if not user:
-        return jsonify({"error": "Not found", "code": 404}), 404
-
-    user.delete_instance()
-    return jsonify({"message": "deleted", "id": user_id}), 200
+    users = [user_to_dict(u) for u in query.paginate(page, per_page)]
+    return jsonify({"data": users, "page": page, "per_page": per_page, "total": total}), 200
 
 
 @users_bp.route("/users/bulk", methods=["POST"])
@@ -168,14 +99,83 @@ def load_users_bulk():
                 skipped += 1
 
     status_code = 201 if inserted > 0 else 200
-    return (
-        jsonify(
-            {
-                "file": file_path.name,
-                "processed": processed,
-                "loaded": inserted,
-                "skipped": skipped,
-            }
-        ),
-        status_code,
-    )
+    return jsonify({
+        "file": file_path.name,
+        "processed": processed,
+        "loaded": inserted,
+        "skipped": skipped,
+    }), status_code
+
+
+@users_bp.route("/users/<int:user_id>", methods=["GET"])
+def get_user(user_id):
+    user = User.select().where(User.id == user_id).first()
+    if not user:
+        return jsonify({"error": "Not found", "code": 404}), 404
+    return jsonify(user_to_dict(user)), 200
+
+
+@users_bp.route("/users", methods=["POST"])
+def create_user():
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Missing request body", "code": 400}), 400
+
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+
+    if not username or not email:
+        return jsonify({"error": "Missing username or email", "code": 400}), 400
+
+    payload = {
+        "username": username,
+        "email": email,
+        "created_at": data.get("created_at") or utc_now_naive(),
+    }
+
+    try:
+        user = User.create(**payload)
+    except IntegrityError:
+        return jsonify({"error": "User already exists", "code": 409}), 409
+
+    return jsonify(user_to_dict(user)), 201
+
+
+@users_bp.route("/users/<int:user_id>", methods=["PUT", "PATCH"])
+def update_user(user_id):
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Missing request body", "code": 400}), 400
+
+    user = User.select().where(User.id == user_id).first()
+    if not user:
+        return jsonify({"error": "Not found", "code": 404}), 404
+
+    if "username" in data:
+        username = (data.get("username") or "").strip()
+        if not username:
+            return jsonify({"error": "Invalid username", "code": 400}), 400
+        user.username = username
+
+    if "email" in data:
+        email = (data.get("email") or "").strip()
+        if not email:
+            return jsonify({"error": "Invalid email", "code": 400}), 400
+        user.email = email
+
+    try:
+        user.save()
+    except IntegrityError:
+        return jsonify({"error": "User already exists", "code": 409}), 409
+
+    return jsonify(user_to_dict(user)), 200
+
+
+@users_bp.route("/users/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    user = User.select().where(User.id == user_id).first()
+    if not user:
+        return jsonify({"error": "Not found", "code": 404}), 404
+
+    user.delete_instance()
+    return jsonify({"message": "deleted", "id": user_id}), 200

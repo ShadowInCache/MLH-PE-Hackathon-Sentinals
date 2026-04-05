@@ -14,6 +14,16 @@ def create_app():
     init_db(app)
 
     from app import models
+    from app.database import db
+    from app.models import Event, HealthCheck, RiskScore, Url, User
+
+    try:
+        db.connect(reuse_if_open=True)
+        db.create_tables([User, Url, Event, HealthCheck, RiskScore], safe=True)
+        db.close()
+    except Exception as e:
+        import logging
+        logging.warning(f"Could not create tables on startup: {e}")
 
     register_routes(app)
 
