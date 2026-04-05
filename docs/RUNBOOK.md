@@ -147,3 +147,34 @@ docker compose ps --format "table {{.Service}}\t{{.Name}}\t{{.State}}\t{{.Status
 | nginx | ghostlink-nginx | running | Up 34 minutes (healthy) |
 
 Result: multi-instance backend (`app1` + `app2`) is active and healthy behind Nginx in Docker Compose.
+
+## Redis Cache Evidence (2026-04-05)
+
+This section captures verification for the hackathon evidence item "Repository/configuration shows Redis caching implementation".
+
+### Repository Implementation Proof
+
+- `app/services/cache.py` implements Redis-backed cache helpers:
+   - URL cache with `SHORT_CODE_TTL = 300` (5 minutes)
+   - risk-score cache with `RISK_SCORE_TTL = 600` (10 minutes)
+   - graceful degradation when Redis is unavailable
+
+### Configuration Proof
+
+- `docker-compose.yml` defines the Redis service (`redis:7-alpine`)
+- app services use `REDIS_URL: redis://redis:6379/0`
+- apps depend on Redis health (`depends_on -> redis -> condition: service_healthy`)
+
+### Runtime Verification Commands
+
+```bash
+docker compose ps redis --format "table {{.Service}}\t{{.Name}}\t{{.State}}\t{{.Status}}"
+docker compose exec -T redis redis-cli ping
+```
+
+### Verified Runtime Output
+
+- redis service: running (healthy)
+- ping response: `PONG`
+
+Result: Redis caching is implemented in application code, wired in compose configuration, and operational at runtime.
