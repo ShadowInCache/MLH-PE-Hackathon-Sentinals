@@ -333,8 +333,12 @@ def get_url(url_id):
 
 @urls_bp.route("/urls/<short_code>", methods=["GET"])
 def redirect_by_shortcode(short_code):
-    """Redirect via /urls/<short_code> path."""
-    return redirect_url(short_code)
+    """Redirect via /urls/<short_code> — inactive URLs appear as 404 (no footprint)."""
+    url = Url.select().where(Url.short_code == short_code).first()
+    if not url or not url.is_active:
+        return jsonify({"error": "Not found", "code": 404}), 404
+    Event.create(url_id=url.id, user_id=url.user_id, event_type="redirect")
+    return redirect(url.original_url, code=302)
 
 
 @urls_bp.route("/urls/<int:url_id>", methods=["PATCH", "PUT"])
