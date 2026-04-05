@@ -114,3 +114,5 @@ These values are the Silver reference for the hackathon evidence form item "Evid
 | exit code | 0 |
 
 These values are the Gold reference for the hackathon evidence form item "Evidence demonstrates tsunami-level throughput" (requirement: 500 concurrent users or >=100 RPS).
+
+At high load (500 concurrent users), the observed failed request rate was 0.08%, which is below the 5% requirement.
