@@ -96,7 +96,7 @@ def create_event():
             return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
         if not User.select().where(User.id == user_id).exists():
-            return jsonify({"error": "User not found", "code": 404}), 404
+            return jsonify({"error": "Invalid user_id", "code": 400}), 400
 
     # Accept referrer at top level or nested inside details dict.
     details = data.get("details")
