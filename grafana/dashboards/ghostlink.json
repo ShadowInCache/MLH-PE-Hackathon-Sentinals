@@ -14,7 +14,7 @@
   "panels": [
     {
       "id": 13,
-      "title": "Deck Header",
+      "title": "Mission Brief",
       "type": "text",
       "gridPos": {
         "h": 4,
@@ -23,7 +23,7 @@
         "y": 0
       },
       "options": {
-        "content": "# GhostLink Pulse Deck\n### Realtime security telemetry, release posture, and edge resilience\n**Fast read mode:** KPI cards on top, live anomaly lanes in the middle, operational context at the bottom.",
+        "content": "# GhostLink Pulse Deck\nSecurity command center for short-link protection, release confidence, and edge resilience.\n**Live profile:** refresh every 5s | window last 1h | sources ghostlink-security + ghostlink-backends | read flow KPI -> anomaly lanes -> ops state.",
         "mode": "markdown"
       }
     },

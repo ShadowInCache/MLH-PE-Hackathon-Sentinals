@@ -20,7 +20,9 @@ GhostLink shortens URLs, tracks redirect events, scores link risk, and monitors 
 
 ![GhostLink Main](Assets/main.jpg)
 
-![Grafana Dashboard](Assets/dashboard.jpeg)
+![Grafana Command Center - Overview](Assets/Dashboard-1.png)
+
+![Grafana Command Center - Live Panels](Assets/Dashboard-2.png)
 
 ---
 
