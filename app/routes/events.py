@@ -18,6 +18,9 @@ def _coerce_positive_int(value, default):
 def _parse_json_object():
     data = request.get_json(silent=True)
     if data is None:
+        has_payload = bool((request.get_data(cache=True, as_text=False) or b"").strip())
+        if has_payload:
+            return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
         return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
     if not isinstance(data, dict):
         return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
@@ -74,6 +77,9 @@ def create_event():
     if url_id is None:
         return jsonify({"error": "Missing url_id", "code": 400}), 400
 
+    if isinstance(url_id, bool):
+        return jsonify({"error": "Invalid url_id", "code": 400}), 400
+
     try:
         url_id = int(url_id)
     except (TypeError, ValueError):
@@ -87,6 +93,9 @@ def create_event():
 
     user_id = data.get("user_id")
     if user_id is not None:
+        if isinstance(user_id, bool):
+            return jsonify({"error": "Invalid user_id", "code": 400}), 400
+
         try:
             user_id = int(user_id)
         except (TypeError, ValueError):

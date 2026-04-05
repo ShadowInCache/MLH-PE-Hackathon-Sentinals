@@ -438,6 +438,15 @@ class TestHiddenHintCoverage:
         assert data["error"] == "Forbidden"
         assert data["code"] == 403
 
+        # Forbidden attempts must not mutate URL state.
+        refreshed = Url.get_by_id(sample_url.id)
+        assert refreshed.is_active is True
+
+        deleted_count = Event.select().where(
+            (Event.url_id == sample_url.id) & (Event.event_type == "deleted")
+        ).count()
+        assert deleted_count == 0
+
     def test_create_event_rejects_mismatched_user_id(self, client, sample_url):
         """Event creation should reject user_id that does not own the URL."""
         intruder = User.create(username="intruder3", email="intruder3@example.com")
@@ -475,4 +484,95 @@ class TestHiddenHintCoverage:
         assert response.status_code == 400
         data = response.get_json()
         assert data["error"] == "Invalid request body"
+        assert data["code"] == 400
+
+    def test_shorten_url_rejects_blank_short_code(self, client):
+        """Explicit blank custom short_code should be rejected."""
+        response = client.post(
+            "/shorten",
+            json={
+                "original_url": "https://example.com",
+                "short_code": "   ",
+            },
+        )
+
+        assert response.status_code == 422
+        data = response.get_json()
+        assert data["error"] == "Invalid short_code"
+        assert data["code"] == 422
+
+    def test_events_reject_boolean_user_id(self, client, sample_url):
+        """Boolean user_id must not be treated as numeric identity."""
+        response = client.post(
+            "/events",
+            json={
+                "url_id": sample_url.id,
+                "user_id": True,
+                "event_type": "click",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid user_id"
+        assert data["code"] == 400
+
+    def test_create_url_rejects_boolean_user_id(self, client):
+        """Boolean user_id must be rejected for URL creation."""
+        response = client.post(
+            "/urls",
+            json={
+                "original_url": "https://example.com",
+                "user_id": True,
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid user_id"
+        assert data["code"] == 400
+
+    def test_events_reject_boolean_url_id(self, client):
+        """Boolean url_id must not be treated as numeric identity."""
+        response = client.post(
+            "/events",
+            json={
+                "url_id": False,
+                "event_type": "click",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid url_id"
+        assert data["code"] == 400
+
+    def test_create_event_rejects_non_object_details(self, client, sample_url):
+        """details must be an object, not scalar payload."""
+        response = client.post(
+            "/events",
+            json={
+                "url_id": sample_url.id,
+                "user_id": sample_url.user_id,
+                "event_type": "click",
+                "details": "not-an-object",
+            },
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Invalid details, must be an object"
+        assert data["code"] == 400
+
+    def test_delete_url_rejects_malformed_json_body(self, client, sample_url):
+        """Optional DELETE body still must be valid JSON when provided."""
+        response = client.delete(
+            f"/urls/{sample_url.id}",
+            data='{"user_id":',
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Missing request body"
         assert data["code"] == 400

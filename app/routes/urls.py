@@ -39,6 +39,9 @@ def get_client_ip():
 def parse_json_object(required=True):
     data = request.get_json(silent=True)
     if data is None:
+        has_payload = bool((request.get_data(cache=True, as_text=False) or b"").strip())
+        if has_payload:
+            return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
         if required:
             return None, (jsonify({"error": "Missing request body", "code": 400}), 400)
         return {}, None
@@ -51,6 +54,9 @@ def coerce_optional_user_id(data):
     user_id = data.get("user_id")
     if user_id is None:
         return None, None
+
+    if isinstance(user_id, bool):
+        return None, (jsonify({"error": "Invalid user_id", "code": 400}), 400)
 
     try:
         user_id = int(user_id)
@@ -67,11 +73,10 @@ def coerce_optional_user_id(data):
 
 
 def coerce_optional_short_code(data):
-    custom_code = data.get("short_code")
-    if custom_code is None:
-        custom_code = data.get("shortcode")
+    has_short_code = "short_code" in data or "shortcode" in data
+    custom_code = data.get("short_code") if "short_code" in data else data.get("shortcode")
 
-    if custom_code is None:
+    if not has_short_code:
         return None, None
 
     if not isinstance(custom_code, str):
@@ -79,7 +84,7 @@ def coerce_optional_short_code(data):
 
     custom_code = custom_code.strip()
     if not custom_code:
-        return None, None
+        return None, (jsonify({"error": "Invalid short_code", "code": 422}), 422)
 
     if len(custom_code) > 10 or not custom_code.isalnum():
         return None, (jsonify({"error": "Invalid short_code", "code": 422}), 422)
@@ -361,12 +366,6 @@ def delete_url(url_id):
     if not url:
         return jsonify({"error": "Not found", "code": 404}), 404
 
-    url.is_active = False
-    url.updated_at = utc_now_naive()
-    url.save()
-
-    cache.delete_cached_url(url.short_code)
-
     body, error_response = parse_json_object(required=False)
     if error_response:
         return error_response
@@ -381,6 +380,12 @@ def delete_url(url_id):
         and event_user_id != url.user_id
     ):
         return jsonify({"error": "Forbidden", "code": 403}), 403
+
+    url.is_active = False
+    url.updated_at = utc_now_naive()
+    url.save()
+
+    cache.delete_cached_url(url.short_code)
 
     Event.create(
         url_id=url.id,
