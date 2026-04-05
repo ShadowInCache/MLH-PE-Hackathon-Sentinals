@@ -4,6 +4,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 from peewee import IntegrityError
 
+from app.database import db
 from app.models.user import User
 from app.utils import utc_now_naive
 
@@ -136,24 +137,18 @@ def create_user():
         "created_at": data.get("created_at") or utc_now_naive(),
     }
 
-    # Look up by email or username first — always return 201 if match found
-    existing = User.select().where(
-        (User.email == email) | (User.username == username)
-    ).first()
-    if existing:
-        return jsonify(user_to_dict(existing)), 201
-
     try:
-        user = User.create(**payload)
+        with db.atomic():
+            user = User.create(**payload)
+        return jsonify(user_to_dict(user)), 201
     except IntegrityError:
-        # Race condition — fetch again
+        # Savepoint rolled back cleanly — safe to query now
         user = User.select().where(
             (User.email == email) | (User.username == username)
         ).first()
-        if user is None:
-            return jsonify({"error": "User already exists", "code": 409}), 409
-
-    return jsonify(user_to_dict(user)), 201
+        if user:
+            return jsonify(user_to_dict(user)), 201
+        return jsonify({"error": "User already exists", "code": 409}), 409
 
 
 @users_bp.route("/users/<int:user_id>", methods=["PUT", "PATCH"])
