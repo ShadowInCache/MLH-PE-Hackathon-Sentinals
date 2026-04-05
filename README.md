@@ -82,6 +82,35 @@ curl http://localhost/health
 | `DATABASE_PASSWORD` | `postgres` | Postgres password |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL |
 
+### Release Metadata
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_VERSION` | `v1-dev` | Release version used in health and response headers |
+| `GIT_SHA` | `local` | Source revision identifier |
+| `DEPLOYED_AT` | `unknown` | Deployment timestamp (UTC ISO8601 recommended) |
+| `RELEASE_OWNER` | `platform` | Release owner / on-call engineer |
+| `RELEASE_NOTES_URL` | `` | Link to release notes |
+
+### Feature Flags
+
+Truthy values accepted for all flags: `true`, `1`, `yes`, `on` (case-insensitive).
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_QUARANTINE_MODE` | `true` | Enables quarantine enforcement during redirects |
+| `ENABLE_RISK_SCORING` | `true` | Enables risk-score computation paths |
+| `ENABLE_GHOST_PROBE_ALERTS` | `true` | Enables suspicious-client and probe telemetry |
+| `ENABLE_CANARY_MONITORING` | `true` | Enables canary state ingestion and metrics |
+| `ENABLE_AUTO_BLOCKING` | `false` | Reserved for automated defensive blocking logic |
+| `ENABLE_THREAT_HEATMAP` | `false` | Reserved for heatmap-focused analytics exposure |
+
+### Rollback State
+
+| Variable | Default | Description |
+|---|---|---|
+| `ROLLBACK_STATE_FILE` | `/var/lib/ghostlink-security/rollback_state.env` | Shared rollback/recovery state consumed by metrics |
+
 ---
 
 ## API Endpoints
@@ -155,6 +184,34 @@ CI runs the full suite on every push to `main` via GitHub Actions.
 
 ---
 
+## Rollback Automation
+
+```bash
+make rollback-plan-app1
+make rollback-plan-app2
+make rollback-plan-all
+
+# Execute rollback after preview
+make rollback-app1
+make rollback-app2
+make rollback-all
+```
+
+Use the `rollback-plan-*` targets first to preview exact compose/state changes without mutating files or restarting containers.
+
+All targets call `scripts/rollback.sh`, which updates release version env state, restarts services, waits for healthy status, and records rollback telemetry.
+
+Post-rollback checks:
+
+- `curl -i http://localhost/health` and verify `X-GhostLink-Version` header
+- verify health payload includes expected `version` and `git_sha`
+- verify recovery metrics in `/metrics`:
+  - `ghostlink_rollbacks_total`
+  - `ghostlink_recovery_attempts_total`
+  - `ghostlink_recovery_success_total`
+
+---
+
 ## Project Structure
 
 ```
@@ -222,4 +279,5 @@ MLH-PE-Hackathon-Sentinals/
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | On-call runbook for each alert type |
 | [docs/CAPACITY.md](docs/CAPACITY.md) | Load tiers, scaling signals, and saturation thresholds |
 | [docs/FAILURE_EDGE_CASES.md](docs/FAILURE_EDGE_CASES.md) | Error handling for every endpoint and dependency |
+| [docs/SECURITY_DRIFT_REPORT.md](docs/SECURITY_DRIFT_REPORT.md) | Security baseline checks and drift detection report |
 | [DECISIONS.md](DECISIONS.md) | Key architectural decisions and rationale |

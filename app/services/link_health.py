@@ -3,6 +3,7 @@ import time
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from app.config.feature_flags import ENABLE_RISK_SCORING
 from app.models.health_check import HealthCheck
 from app.models.url import Url
 from app.services.risk_scorer import compute_risk_score
@@ -60,7 +61,8 @@ def check_all_urls():
         )
 
         # Keep risk signals fresh as new health observations are collected.
-        compute_risk_score(url.id)
+        if ENABLE_RISK_SCORING:
+            compute_risk_score(url.id)
 
 
 def start_health_checker():

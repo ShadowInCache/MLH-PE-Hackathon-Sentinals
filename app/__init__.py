@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 
+from app.config.release_info import get_release_info
 from app.database import ensure_tables, init_db
 from app.routes import register_routes
 from app.services.link_health import start_health_checker
@@ -40,6 +41,12 @@ def create_app(testing=False):
             db.close()
 
     register_routes(app)
+
+    @app.after_request
+    def _attach_release_headers(response):
+        release = get_release_info()
+        response.headers["X-GhostLink-Version"] = release.version
+        return response
 
     if _should_start_health_checker(app):
         start_health_checker()

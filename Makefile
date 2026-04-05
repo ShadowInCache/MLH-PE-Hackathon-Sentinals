@@ -1,4 +1,4 @@
-.PHONY: chaos-kill-app1 chaos-kill-app2 chaos-stop-redis chaos-stop-postgres chaos-spike-errors chaos-reset quarantine-demo
+.PHONY: chaos-kill-app1 chaos-kill-app2 chaos-stop-redis chaos-stop-postgres chaos-spike-errors chaos-reset quarantine-demo rollback-app1 rollback-app2 rollback-all rollback-plan-app1 rollback-plan-app2 rollback-plan-all
 
 chaos-kill-app1:
 	docker compose stop app1
@@ -31,3 +31,21 @@ chaos-reset:
 
 quarantine-demo:
 	./scripts/quarantine_code.sh demo-threat
+
+rollback-app1:
+	./scripts/rollback.sh app1
+
+rollback-app2:
+	./scripts/rollback.sh app2
+
+rollback-all:
+	./scripts/rollback.sh all
+
+rollback-plan-app1:
+	./scripts/rollback.sh --dry-run app1
+
+rollback-plan-app2:
+	./scripts/rollback.sh --dry-run app2
+
+rollback-plan-all:
+	./scripts/rollback.sh --dry-run all

@@ -10,6 +10,18 @@ groups:
       - record: ghostlink_active_alerts
         expr: sum(ALERTS{alertstate="firing"})
 
+      - record: active_alerts_total
+        expr: sum(ALERTS{alertstate="firing"})
+
+      - record: recovery_success_rate
+        expr: clamp_min(sum(ghostlink_recovery_success_total), 0) / clamp_min(sum(ghostlink_recovery_attempts_total), 1)
+
+      - record: mean_time_to_recover_minutes
+        expr: avg(ghostlink_mean_time_to_recover_minutes)
+
+      - record: mean_time_to_detect_minutes
+        expr: avg(ghostlink_mean_time_to_detect_minutes)
+
   - name: ghostlink-alerts
     rules:
       - alert: ServiceDown
@@ -28,7 +40,7 @@ groups:
           severity: warning
         annotations:
           summary: "Redirect failure ratio above threshold"
-          message: "Redirect failure ratio above 5% on {{ $labels.instance }}"
+          message: "Redirect failure ratio above 5% on {{ $labels.instance }}. Rollback recommended due to elevated error rate"
 
       - alert: GhostProbeSpike
         expr: rate(ghost_probes_total[1m]) > 10

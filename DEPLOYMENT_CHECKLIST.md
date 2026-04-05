@@ -28,10 +28,15 @@
 - [x] Requirements: All deps (Flask, Peewee, Redis, APScheduler, etc.)
 - [x] Seed Script: Idempotent CSV loader
 - [x] Setup Script: Quick database initialization
+- [x] Canary split control: weighted app1/app2 traffic (9:1)
+- [x] Rollback automation with dry-run planning and recovery telemetry
+- [x] Security drift detection automation (`scripts/security_drift_check.py`)
 
 ### Phase 7: Documentation ✅
 - [x] DECISIONS.md: Architecture rationale
 - [x] README_GHOSTLINK.md: Comprehensive user guide
+- [x] docs/RUNBOOK.md: Release operations and rollback procedure
+- [x] docs/SECURITY_DRIFT_REPORT.md: Drift checks and operational guidance
 
 ## 📊 By the Numbers
 
@@ -126,6 +131,25 @@ curl -X POST http://localhost:5000/shorten \
   -d '{"original_url":"https://other.com","short_code":"abc123"}'  # Should return 409
 ```
 
+## 🔁 Release Operations Checklist (2026-04-05)
+
+Use this checklist for canary recovery and rollback execution.
+
+- [x] Preview rollback plan before execution:
+  - `make rollback-plan-app2`
+  - `make rollback-plan-app1`
+- [x] Execute rollback only after preview validation:
+  - `make rollback-app2`
+- [x] Verify release metadata after rollback:
+  - `curl -i http://localhost/health` and check `X-GhostLink-Version`
+  - confirm `/health` includes expected `version` and `git_sha`
+- [x] Verify recovery scorecard metrics update:
+  - `ghostlink_rollbacks_total`
+  - `ghostlink_recovery_attempts_total`
+  - `ghostlink_recovery_success_total`
+- [x] Run security drift check before declaring release healthy:
+  - `python scripts/security_drift_check.py`
+
 ## 📦 Deliverables
 
 ### Code
@@ -137,6 +161,8 @@ curl -X POST http://localhost:5000/shorten \
 - ✅ README_GHOSTLINK.md (user guide)
 - ✅ DECISIONS.md (architecture decisions)
 - ✅ BUILD_SUMMARY.md (this file)
+- ✅ docs/RUNBOOK.md (incident + rollback runbook)
+- ✅ docs/SECURITY_DRIFT_REPORT.md (security baseline checks)
 
 ### Configuration
 - ✅ requirements.txt (Python deps)
