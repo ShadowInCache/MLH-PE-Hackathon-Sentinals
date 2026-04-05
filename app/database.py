@@ -1,11 +1,21 @@
 import os
 
 import redis
+from flask import jsonify, request
 from peewee import DatabaseProxy, Model, PostgresqlDatabase
+from playhouse.db_url import connect
 
 db = DatabaseProxy()
 redis_client = None
 tables_initialized_for_db = None
+DB_OPTIONAL_PATHS = {
+    "/health",
+    "/health-demo",
+    "/promo-demo",
+    "/checkout-demo",
+    "/dashboard-demo",
+    "/support-demo",
+}
 
 
 class BaseModel(Model):
@@ -38,16 +48,30 @@ def ensure_tables():
         tables_initialized_for_db = db_identity
 
 
-def init_db(app):
-    global redis_client
+def _create_database_from_env(app):
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        try:
+            return connect(database_url)
+        except Exception as exc:
+            app.logger.warning(
+                "Invalid DATABASE_URL provided: %s. Falling back to discrete DB variables.",
+                exc,
+            )
 
-    database = PostgresqlDatabase(
+    return PostgresqlDatabase(
         os.environ.get("DATABASE_NAME", "hackathon_db"),
         host=os.environ.get("DATABASE_HOST", "localhost"),
         port=int(os.environ.get("DATABASE_PORT", 5432)),
         user=os.environ.get("DATABASE_USER", "postgres"),
         password=os.environ.get("DATABASE_PASSWORD", "postgres"),
     )
+
+
+def init_db(app):
+    global redis_client
+
+    database = _create_database_from_env(app)
     db.initialize(database)
 
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -63,8 +87,15 @@ def init_db(app):
 
     @app.before_request
     def _db_connect():
-        db.connect(reuse_if_open=True)
-        ensure_tables()
+        if request.path in DB_OPTIONAL_PATHS:
+            return None
+
+        try:
+            db.connect(reuse_if_open=True)
+            ensure_tables()
+        except Exception:
+            app.logger.exception("Database connection failed before request handling")
+            return jsonify({"error": "Service unavailable", "code": 503}), 503
 
     @app.teardown_appcontext
     def _db_close(exc):

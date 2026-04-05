@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   nginx:
     image: nginx:1.27-alpine
@@ -41,6 +39,7 @@ services:
       DATABASE_PASSWORD: ghostlink
       BLOCKED_CODES_PATH: /app/nginx/blocked_codes.conf
       CANARY_STATE_FILE: /var/lib/ghostlink-security/canary_state.env
+      ENABLE_HEALTH_CHECKER: "1"
     volumes:
       - ./nginx/blocked_codes.conf:/app/nginx/blocked_codes.conf:ro
       - ./security:/var/lib/ghostlink-security:ro
@@ -83,6 +82,7 @@ services:
       DATABASE_PASSWORD: ghostlink
       BLOCKED_CODES_PATH: /app/nginx/blocked_codes.conf
       CANARY_STATE_FILE: /var/lib/ghostlink-security/canary_state.env
+      ENABLE_HEALTH_CHECKER: "0"
     volumes:
       - ./nginx/blocked_codes.conf:/app/nginx/blocked_codes.conf:ro
       - ./security:/var/lib/ghostlink-security:ro

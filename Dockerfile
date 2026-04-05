@@ -11,6 +11,8 @@ RUN apt-get update -o Acquire::Retries=5 \
     && apt-get install -y --no-install-recommends --fix-missing build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN addgroup --system ghostlink && adduser --system --ingroup ghostlink ghostlink
+
 COPY pyproject.toml requirements.txt README.md ./
 
 RUN pip install --upgrade pip setuptools wheel \
@@ -21,6 +23,13 @@ RUN pip install --upgrade pip setuptools wheel \
 
 COPY . .
 
+RUN chown -R ghostlink:ghostlink /app
+
+USER ghostlink
+
 EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)" || exit 1
 
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "30", "run:app"]

@@ -67,8 +67,9 @@ jobs:
           DATABASE_USER: postgres
           DATABASE_PASSWORD: postgres
           REDIS_URL: redis://localhost:6379/15
+          ENABLE_HEALTH_CHECKER: "0"
         run: |
-          python -m pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=70 app/tests/
+          python -m pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=70
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4

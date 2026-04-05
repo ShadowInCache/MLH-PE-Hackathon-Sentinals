@@ -11,11 +11,12 @@ from app.models import Event, HealthCheck, RequestFingerprint, RiskScore, Url, U
 @pytest.fixture(scope="function")
 def app():
     """Create and configure a test Flask app instance."""
+    os.environ.pop("DATABASE_URL", None)
     os.environ["DATABASE_NAME"] = "test_ghostlink"
     os.environ["REDIS_URL"] = "redis://localhost:6379/15"
+    os.environ["ENABLE_HEALTH_CHECKER"] = "0"
 
-    test_app = create_app()
-    test_app.config["TESTING"] = True
+    test_app = create_app(testing=True)
 
     with test_app.app_context():
         redis_client = get_redis()
