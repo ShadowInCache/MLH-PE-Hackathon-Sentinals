@@ -64,6 +64,13 @@ def shorten_url():
     user_id = data.get("user_id")
     title = data.get("title")
 
+    if user_id is not None and not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id", "code": 400}), 400
+    if title is not None and not isinstance(title, str):
+        return jsonify({"error": "Invalid title", "code": 400}), 400
+    if custom_code is not None and not isinstance(custom_code, str):
+        return jsonify({"error": "Invalid short_code", "code": 400}), 400
+
     if custom_code:
         if not shortener.is_code_available(custom_code):
             return jsonify({"error": "Short code exists", "code": 409}), 409
@@ -105,8 +112,17 @@ def create_url():
         return jsonify({"error": "Invalid URL", "code": 422}), 422
 
     user_id = data.get("user_id")
+    if user_id is not None:
+        if not isinstance(user_id, int):
+            return jsonify({"error": "Invalid user_id", "code": 400}), 400
+
     title = data.get("title")
+    if title is not None and not isinstance(title, str):
+        return jsonify({"error": "Invalid title", "code": 400}), 400
+
     custom_code = data.get("short_code") or data.get("shortcode")
+    if custom_code is not None and not isinstance(custom_code, str):
+        return jsonify({"error": "Invalid short_code", "code": 400}), 400
 
     if custom_code:
         if not shortener.is_code_available(custom_code):
@@ -166,9 +182,6 @@ def redirect_url(short_code):
         return jsonify({"error": "Not found", "code": 404}), 404
 
     if not url.is_active:
-        increment_ghost_probes()
-        record_request_fingerprint(short_code=short_code, status_code=410, client_ip=client_ip, user_agent=user_agent, is_ghost_probe=True)
-        compute_risk_score(url.id)
         return jsonify({"error": "Link inactive", "code": 410}), 410
 
     cache.cache_url(short_code, url.original_url)
